@@ -1,0 +1,88 @@
+{
+  "name": "mcpfy-sdk",
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Minimal TypeScript SDK for building and consuming MCP tools, prompts, resources, and UI widgets (MCP-UI, MCP Apps, Apps SDK).",
+  "author": "mcpfy",
+  "license": "MIT",
+  "homepage": "https://github.com/mcpfyy/mcpfy#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mcpfyy/mcpfy.git",
+    "directory": "typescript/packages/mcpfy"
+  },
+  "bugs": {
+    "url": "https://github.com/mcpfyy/mcpfy/issues"
+  },
+  "keywords": [
+    "mcp",
+    "mcpfy",
+    "model-context-protocol",
+    "sdk",
+    "tools",
+    "prompts",
+    "resources",
+    "widgets",
+    "mcp-ui",
+    "mcp-apps",
+    "apps-sdk",
+    "ai",
+    "typescript"
+  ],
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js",
+      "require": "./dist/src/index.cjs"
+    },
+    "./server": {
+      "types": "./dist/src/server/index.d.ts",
+      "import": "./dist/src/server/index.js",
+      "require": "./dist/src/server/index.cjs"
+    },
+    "./client": {
+      "types": "./dist/src/client/index.d.ts",
+      "import": "./dist/src/client/index.js",
+      "require": "./dist/src/client/index.cjs"
+    },
+    "./widget-bridge": {
+      "types": "./dist/src/client-widget/index.d.ts",
+      "import": "./dist/src/client-widget/index.js"
+    }
+  },
+  "main": "./dist/src/index.js",
+  "module": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "rimraf dist && tsup && tsc --emitDeclarationOnly --declaration",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "zod": "^3.25.0 || ^4.0.0"
+  },
+  "dependencies": {
+    "@mcp-ui/server": "^6.1.0",
+    "@modelcontextprotocol/ext-apps": "^1.7.5",
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "rimraf": "^6.0.1",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8",
+    "zod": "^3.25.76"
+  }
+}

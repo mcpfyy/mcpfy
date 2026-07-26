@@ -1,0 +1,22 @@
+{
+  "name": "{{PROJECT_NAME}}",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An MCP server built with mcpfy.",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "dev:stdio": "tsx src/server.ts --stdio",
+    "dev:http": "tsx src/server.ts --http",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "mcpfy-sdk": "^0.1.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

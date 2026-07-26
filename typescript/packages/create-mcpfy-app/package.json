@@ -1,0 +1,39 @@
+{
+  "name": "create-mcpfy-app",
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Scaffold a working MCP server (tools, prompts, resources) with one command.",
+  "author": "mcpfy",
+  "license": "MIT",
+  "homepage": "https://github.com/mcpfyy/mcpfy#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mcpfyy/mcpfy.git",
+    "directory": "typescript/packages/create-mcpfy-app"
+  },
+  "bugs": {
+    "url": "https://github.com/mcpfyy/mcpfy/issues"
+  },
+  "keywords": ["mcp", "mcpfy", "model-context-protocol", "create", "scaffold", "cli", "starter", "template"],
+  "bin": {
+    "create-mcpfy-app": "./dist/bin.js"
+  },
+  "files": ["dist", "README.md"],
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "build": "rimraf dist && tsup && node scripts/copy-templates.mjs",
+    "dev": "tsx src/bin.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "rimraf": "^6.0.1",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

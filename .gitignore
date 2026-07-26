@@ -1,0 +1,27 @@
+# Dependencies & build output (per-language dirs each have their own too,
+# this catches anything at the repo root and anything those miss)
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Go
+/bin/
+
+# Env & secrets
+.env
+.env.local
+*.pem
+
+# OS / editor
+.DS_Store
+*.log
+.vscode/
+.idea/
