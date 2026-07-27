@@ -1,72 +1,146 @@
 # create-mcpfy-app
 
-Scaffold a working [mcpfy](https://www.npmjs.com/package/mcpfy-sdk) MCP server — one tool, one
-prompt, one resource, already wired up — with a single command.
+The fastest way to start building an MCP server with **mcpfy**.
 
-## Usage
+Scaffold a production ready MCP server with a single command. You get a working server with a tool, prompt, and resource already wired up so you can start building immediately instead of setting up boilerplate.
+
+## Quick Start
 
 ```bash
 npx create-mcpfy-app@latest my-server
-# or
+```
+
+or
+
+```bash
 npm create mcpfy-app my-server
 ```
 
-If you don't pass a project name, you'll be prompted for one. You'll then be asked which
-**transport** to default to:
+If you don't provide a project name, you'll be prompted for one.
 
-```
+You'll also choose the default transport:
+
+```text
 Which transport should this server use?
   1) stdio  — what most MCP hosts expect (Claude Desktop, Claude Code, Cursor, ...)
   2) http   — serves over HTTP, useful for remote/hosted servers
 Select 1 or 2 (default: 1):
 ```
 
-Then:
+Once the project is created:
 
 ```bash
 cd my-server
-npm run dev   # starts with whichever transport you picked
+npm run dev
 ```
 
-The generated project always has `dev:stdio` and `dev:http` scripts too, regardless of your
-default choice, so you can run either transport on demand without editing anything.
+Your server starts using the transport you selected.
 
-## Options
+You can always run either transport later:
 
 ```bash
-npx create-mcpfy-app@latest my-server --stdio             # skip the prompt, default to stdio
-npx create-mcpfy-app@latest my-server --http              # skip the prompt, default to http
-npx create-mcpfy-app@latest my-server --transport stdio   # equivalent, explicit form
-npx create-mcpfy-app@latest my-server --no-install         # skip the automatic package install
-npx create-mcpfy-app@latest my-server --pm pnpm            # force a specific package manager
+npm run dev:stdio
+npm run dev:http
 ```
 
-By default, the package manager that launched the CLI (npm/pnpm/yarn) is auto-detected and used
-to install dependencies after scaffolding.
+---
 
-## What you get
+## What's Included
 
-```
+```text
 my-server/
 ├── package.json
 ├── tsconfig.json
 ├── .gitignore
 ├── README.md
 └── src/
-    └── server.ts   # one tool (add), one resource (app://greeting), one prompt (greet)
+    └── server.ts
 ```
 
-`src/server.ts` is a complete, runnable [`mcpfy`](https://www.npmjs.com/package/mcpfy-sdk) server —
-open it, add your own `.tool()`/`.prompt()`/`.resource()` calls, and you're building. No
-generated abstractions to learn beyond the SDK itself.
+Inside `server.ts` you'll find:
 
-## Why this exists
+- ✅ One example tool
+- ✅ One example prompt
+- ✅ One example resource
+- ✅ A fully configured MCP server
+- ✅ TypeScript setup with hot reload
 
-mcpfy's whole pitch is "small enough to read end to end" — but nobody wants to hand-copy
-boilerplate to get started. This scaffolder is intentionally minimal too: it has **zero runtime
-dependencies** beyond Node.js itself (no Ink, no `commander`, no template-fetching over the
-network) — it just copies a bundled template and runs your package manager's install.
+Everything is real code. Nothing is hidden behind generators or custom abstractions.
+
+---
+
+## CLI Options
+
+Skip the transport prompt:
+
+```bash
+npx create-mcpfy-app@latest my-server --stdio
+```
+
+```bash
+npx create-mcpfy-app@latest my-server --http
+```
+
+or use the explicit form:
+
+```bash
+npx create-mcpfy-app@latest my-server --transport stdio
+```
+
+Skip dependency installation:
+
+```bash
+npx create-mcpfy-app@latest my-server --no-install
+```
+
+Choose a package manager:
+
+```bash
+npx create-mcpfy-app@latest my-server --pm pnpm
+```
+
+Supported package managers:
+
+- npm
+- pnpm
+- yarn
+
+If no package manager is specified, the CLI automatically uses whichever one launched it.
+
+---
+
+## Why create-mcpfy-app?
+
+Most MCP starters generate hundreds of lines of code before you've written your first tool.
+
+`create-mcpfy-app` keeps things intentionally small.
+
+You get a clean project that's easy to read, easy to modify, and easy to delete the example code from.
+
+The generated server is just normal mcpfy code, so everything you learn transfers directly into your own application.
+
+No magic.
+
+No generated framework.
+
+No unnecessary dependencies.
+
+Just a working MCP server you can start building on.
+
+---
+
+## Next Steps
+
+Open `src/server.ts` and start adding your own:
+
+- Tools
+- Prompts
+- Resources
+
+Run your server, connect it to your favourite MCP client, and you're ready to build.
+
+---
 
 ## License
 
-MIT — see the [repo LICENSE](../../../LICENSE).
+MIT

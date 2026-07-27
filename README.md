@@ -2,9 +2,13 @@
 
 # mcpfy
 
-**A minimal SDK for building and consuming [MCP](https://modelcontextprotocol.io) servers.**
+A lightweight TypeScript SDK for building and consuming **MCP tools, prompts, resources, and widgets** with a clean, declarative API.
 
-Tools. Prompts. Resources. Widgets. Stdio or HTTP, your choice.
+Supports **stdio**, **HTTP**, and widgets that work across **MCP-UI**, **MCP Apps**, and **OpenAI Apps SDK**.
+
+```bash
+npx create-mcpfy-app@latest my-server
+```
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-ready-3178c6)](./typescript)
@@ -14,96 +18,177 @@ Tools. Prompts. Resources. Widgets. Stdio or HTTP, your choice.
 
 ---
 
-## Why mcpfy
+## Why mcpfy?
 
-The [Model Context Protocol](https://modelcontextprotocol.io) has a lot of surface area — tools,
-prompts, resources, sampling, elicitation, roots, completions, OAuth, apps/widgets, and more.
-Most of the time, you don't need most of it. You need a server that exposes a few **tools**,
-maybe a **prompt** or a **resource**, and you want to be talking to it in under a minute.
+The official MCP SDK is powerful, but getting your first server running still means writing a fair amount of setup code.
 
-mcpfy is a thin, honest wrapper around the official [`@modelcontextprotocol/sdk`](https://github.com/modelcontextprotocol/typescript-sdk)
-that gets you there — a small, readable codebase you can actually understand end to end, with:
+mcpfy keeps everything you need and removes the repetitive parts.
 
-- **Tools, prompts, resources, and widgets** — the core MCP primitives, with a clean declarative
-  API, plus interactive UI widgets across all three real-world conventions (MCP-UI, MCP Apps,
-  Apps SDK) from one `server.widget()` call
-- **Both transports** — stdio (what most MCP hosts expect) and HTTP, switchable with one option
-- **Zero ceremony** — `npx create-mcpfy-app@latest` gets you a running server before you've
-  written a line of code
+It stays close to the official SDK while providing a much cleaner API for the things you'll use every day.
 
-## Quickstart
+With mcpfy you get:
 
-Scaffold a working server — no boilerplate to write:
+- 🚀 Build an MCP server in minutes
+- 🛠️ Simple APIs for tools, prompts, resources, and widgets
+- 🌐 stdio and HTTP transports built in
+- 🎨 One widget API that supports MCP-UI, MCP Apps, and OpenAI Apps SDK
+- 📦 Tiny API surface with minimal abstractions
+- 🔓 Full access to the underlying official SDK whenever you need it
+
+---
+
+## Quick Start
+
+Create a complete MCP server in one command.
 
 ```bash
 npx create-mcpfy-app@latest my-server
+
 cd my-server
 npm run dev
 ```
 
-That's a real MCP server, already talking stdio, with one tool, one prompt, and one resource
-wired up. Or build one by hand:
+That's it.
+
+You now have a working MCP server with:
+
+- ✅ One tool
+- ✅ One prompt
+- ✅ One resource
+- ✅ TypeScript configured
+- ✅ Ready to connect to Claude Desktop, Cursor, Claude Code, Windsurf, or any MCP client
+
+Or create one manually:
 
 ```ts
 import { MCPServer, text } from "mcpfy-sdk/server";
 
-const server = new MCPServer({ name: "my-server", version: "1.0.0" });
+const server = new MCPServer({
+  name: "my-server",
+  version: "1.0.0",
+});
 
 server.tool(
-  { name: "hello", description: "Say hello" },
+  {
+    name: "hello",
+    description: "Say hello",
+  },
   async () => text("Hello, World!")
 );
 
-await server.listen(); // stdio by default — pass { transport: "http", port: 3000 } for HTTP
+await server.listen();
 ```
+
+Connecting from a client is just as simple:
 
 ```ts
 import { MCPClient } from "mcpfy-sdk/client";
 
 const client = new MCPClient({
-  mcpServers: { myServer: { command: "node", args: ["server.js"] } },
+  mcpServers: {
+    local: {
+      command: "node",
+      args: ["server.js"],
+    },
+  },
 });
 
-const session = await client.createSession("myServer");
+const session = await client.createSession("local");
+
 console.log(await session.callTool("hello"));
 ```
 
-## Repository structure
+---
 
-```
+## What's Included?
+
+### `mcpfy-sdk/server`
+
+Build MCP servers with:
+
+- Tools
+- Prompts
+- Resources
+- Widgets
+- stdio transport
+- HTTP transport
+
+### `mcpfy-sdk/client`
+
+Connect to local or remote MCP servers using the same API.
+
+### `mcpfy-sdk/widget-bridge`
+
+Build widgets that communicate with:
+
+- MCP-UI
+- MCP Apps
+- OpenAI Apps SDK
+
+---
+
+## Repository Structure
+
+```text
 mcpfy/
-└── typescript/            → TypeScript SDK (npm: mcpfy-sdk, create-mcpfy-app)
+└── typescript/
     ├── packages/
-    │   ├── mcpfy/          → the SDK: mcpfy-sdk/server, mcpfy-sdk/client, mcpfy-sdk/widget-bridge
-    │   └── create-mcpfy-app/ → npx create-mcpfy-app@latest scaffolder
+    │   ├── mcpfy/
+    │   └── create-mcpfy-app/
     └── examples/
-        ├── hello-world/        → minimal runnable example, both transports
-        └── widget-hello-world/ → a widget across all three UI-resource protocols
+        ├── hello-world/
+        └── widget-hello-world/
 ```
 
-See [`typescript/README.md`](./typescript/README.md) for TypeScript-specific setup, development
-commands, and testing.
+| Package | Description |
+|----------|-------------|
+| `mcpfy-sdk` | The core SDK for building MCP servers, clients, and widgets |
+| `create-mcpfy-app` | A project scaffolder that creates a complete MCP server with one command |
 
-## Packages
-
-| Package | What it is |
-|---|---|
-| [`mcpfy-sdk`](./typescript/packages/mcpfy) | The SDK — `MCPServer`/`MCPClient`, tool/prompt/resource/widget registration, stdio + HTTP transports |
-| [`create-mcpfy-app`](./typescript/packages/create-mcpfy-app) | `npx create-mcpfy-app@latest` — scaffolds a working server in one command |
+---
 
 ## Documentation
 
-- [TypeScript SDK guide](./typescript/README.md)
-- [`mcpfy-sdk` package README](./typescript/packages/mcpfy/README.md) — full API reference
-- [`examples/hello-world`](./typescript/examples/hello-world) — a complete runnable example,
-  both transports
-- [`examples/widget-hello-world`](./typescript/examples/widget-hello-world) — a widget across
-  MCP-UI, MCP Apps, and Apps SDK at once
+- 📖 **TypeScript SDK Guide**  
+  `typescript/README.md`
+
+- 📦 **Full API Reference**  
+  `typescript/packages/mcpfy/README.md`
+
+- 🚀 **Hello World Example**  
+  `typescript/examples/hello-world`
+
+- 🎨 **Widget Example**  
+  `typescript/examples/widget-hello-world`
+
+---
+
+## Philosophy
+
+mcpfy aims to stay small.
+
+It doesn't try to replace the official SDK.
+
+Instead, it provides a simpler developer experience while staying close enough that everything you learn transfers directly.
+
+No hidden framework.
+
+No magic.
+
+No unnecessary abstractions.
+
+Just a pleasant way to build MCP servers.
+
+---
 
 ## Contributing
 
-Contributions are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md).
+Contributions, issues, and ideas are always welcome.
+
+See **CONTRIBUTING.md** for details.
+
+---
 
 ## License
 
-[MIT](./LICENSE)
+MIT

@@ -1,39 +1,83 @@
 # mcpfy
 
-A minimal TypeScript SDK for building and consuming MCP (Model Context Protocol) **tools,
-prompts, resources, and UI widgets** — wrapping the official [`@modelcontextprotocol/sdk`](https://github.com/modelcontextprotocol/typescript-sdk)
-with a small, declarative API. Both stdio and HTTP transports, on the server and the client.
-Widgets are supported across all three real-world UI-resource conventions — MCP-UI, MCP Apps
-(SEP-1865), and Apps SDK (ChatGPT) — from one `server.widget()` call.
+Build MCP servers in minutes, not hours.
 
-No bundled Inspector, no CLI, no OAuth, no telemetry. See the [repo README](../../../README.md)
-for the project's overall scope.
+**mcpfy** is a lightweight TypeScript SDK for building and consuming **MCP tools, prompts, resources, and interactive widgets** with a clean, declarative API.
 
-## Install
+It wraps the official `@modelcontextprotocol/sdk` without hiding it, so you get a much simpler developer experience while keeping full access whenever you need it.
+
+Supports both **stdio** and **HTTP** transports for servers and clients, plus interactive widgets.
+
+## Why mcpfy?
+
+- 🚀 Build an MCP server with just a few lines of code
+- 🧩 Tools, prompts, resources and widgets from one SDK
+- 🌐 HTTP  and Stdio transports built in
+- 🎨 One widget API that works across all major MCP UI protocols
+- 🔓 Full access to the underlying official SDK whenever you need it
+- 📦 Tiny API surface with minimal abstractions
+
+---
+
+## Installation
 
 ```bash
 npm install mcpfy-sdk zod
 ```
 
-`zod` is a peer dependency — you provide your own version (`^3.25.0` or `^4.0.0`).
+`zod` is a peer dependency. Any compatible `^3.25.0` or `^4.x` version works.
 
-## Quickstart
+---
+
+## Quick Start
 
 ```ts
 import { MCPServer, text } from "mcpfy-sdk/server";
 
-const server = new MCPServer({ name: "my-server", version: "1.0.0" });
+const server = new MCPServer({
+  name: "my-server",
+  version: "1.0.0",
+});
 
-server.tool({ name: "hello", description: "Say hello" }, async () => text("Hello, World!"));
+server.tool(
+  {
+    name: "hello",
+    description: "Say hello",
+  },
+  async () => text("Hello, World!")
+);
 
-await server.listen(); // stdio by default
+await server.listen();
 ```
 
-Prefer not writing this by hand? `npx create-mcpfy-app@latest` scaffolds it for you.
+That's it.
 
-## Server API (`mcpfy-sdk/server`)
+Your server is now ready to connect to Claude Desktop, Cursor, Claude Code, Windsurf, or any other MCP client.
 
-### `new MCPServer(config)`
+Don't want to start from scratch?
+
+```bash
+npx create-mcpfy-app@latest
+```
+
+scaffolds a complete project with an example tool, prompt, resource and development setup.
+
+---
+
+# Server API
+
+```ts
+import { MCPServer } from "mcpfy-sdk/server";
+```
+
+## Create a server
+
+```ts
+const server = new MCPServer({
+  name: "my-server",
+  version: "1.0.0",
+});
+```
 
 ```ts
 interface MCPServerConfig {
@@ -43,192 +87,319 @@ interface MCPServerConfig {
 }
 ```
 
-Wraps the official SDK's `McpServer`. The instance is available as `server.nativeServer` for
-any advanced/escape-hatch use the declarative API doesn't cover.
+`MCPServer` wraps the official SDK while exposing it as `server.nativeServer` whenever you need lower level control.
 
-### `.tool(definition, callback?)`
+---
+
+## Tools
 
 ```ts
 server.tool(
   {
     name: "add",
     description: "Add two numbers",
-    schema: z.object({ a: z.number(), b: z.number() }), // input, a z.object(...)
-    outputSchema: z.object({ sum: z.number() }),          // optional — constrains structuredContent
+    schema: z.object({
+      a: z.number(),
+      b: z.number(),
+    }),
+    outputSchema: z.object({
+      sum: z.number(),
+    }),
   },
-  async ({ a, b }, ctx) => object({ sum: a + b })
+  async ({ a, b }) => object({
+    sum: a + b,
+  })
 );
 ```
 
-The callback's second argument is a [`ToolContext`](#toolcontext) (see below). You can pass the
-callback either as the definition's `cb` field or as the second argument — whichever reads
-better at the call site.
+The callback receives:
 
-### `.prompt(definition, callback?)`
+```ts
+(input, context)
+```
+
+You can also define the callback inline using the `cb` property if you prefer.
+
+---
+
+## Prompts
 
 ```ts
 server.prompt(
-  { name: "greet", schema: z.object({ name: z.string() }) },
-  async ({ name }) => text(`Hello, ${name}!`)
+  {
+    name: "greet",
+    schema: z.object({
+      name: z.string(),
+    }),
+  },
+  async ({ name }) => text(`Hello ${name}!`)
 );
 ```
 
-A prompt callback can return either a raw `{ messages: [...] }` (`GetPromptResult`) or one of
-the response helpers below — `text()`/`markdown()`/`object()` results get converted into a
-single user message automatically.
+Prompt callbacks can return either:
 
-### `.resource(definition, callback?)` — static URI
+- one of mcpfy's response helpers
+- a raw `GetPromptResult`
+
+---
+
+## Static Resources
 
 ```ts
 server.resource(
-  { name: "greeting", uri: "app://greeting", title: "Greeting" },
+  {
+    name: "greeting",
+    uri: "app://greeting",
+    title: "Greeting",
+  },
   async () => markdown("# Hello!")
 );
 ```
 
-### `.resourceTemplate(definition, callback?)` — dynamic URI
+---
+
+## Dynamic Resources
 
 ```ts
 server.resourceTemplate(
-  { name: "user-profile", uriTemplate: "user://{userId}/profile" },
-  async (uri, params) => object({ userId: params.userId })
+  {
+    name: "user-profile",
+    uriTemplate: "user://{userId}/profile",
+  },
+  async (uri, params) =>
+    object({
+      userId: params.userId,
+    })
 );
 ```
 
-`uriTemplate` uses the SDK's own URI-template matching (`user://{userId}/profile` style).
-`params` is the extracted variables as strings.
+Template variables are automatically extracted from the URI.
 
-### `.widget(definition, callback?)` — interactive UI resources
+---
+
+## Widgets
+
+Create interactive UI with a single API.
 
 ```ts
 server.widget(
   {
     name: "counter",
-    description: "A counter widget",
-    content: { type: "html", html: "<html>...</html>" }, // or { type: "url", url: "..." }
-    protocols: ["mcp-ui", "mcp-apps", "apps-sdk"],          // optional — defaults to all three
+    description: "Counter widget",
+    content: {
+      type: "html",
+      html: "<html>...</html>",
+    },
   },
-  async () => object({ count: 0 })
+  async () => ({
+    count: 0,
+  })
 );
 ```
 
-Registers one tool (paired with the widget) plus whichever standalone resources each requested
-protocol needs, with correct mimeTypes and `_meta` pointers for each:
-
-| Protocol | Delivery | mimeType |
-|---|---|---|
-| `mcp-ui` | embedded directly in the tool's `CallToolResult.content` | `text/html;profile=mcp-app` (via `@mcp-ui/server`'s own default) |
-| `mcp-apps` | standalone resource, `_meta.ui.resourceUri` pointer on the tool | `text/html;profile=mcp-app` |
-| `apps-sdk` | standalone resource, `_meta["openai/outputTemplate"]` pointer on the tool | `text/html+skybridge` |
-
-**`content` must be pre-built, self-contained HTML** (or a URL to iframe) — mcpfy does not
-compile, bundle, or hot-reload anything. Author your widget however you like (React+Vite, plain
-HTML, whatever) and hand `.widget()` the finished output. See
-[`examples/widget-hello-world`](../../examples/widget-hello-world) for a complete example,
-including a widget that talks back to the host — see `mcpfy-sdk/widget-bridge` below for that half.
-
-### `.listen(options?)`
+or host the UI elsewhere:
 
 ```ts
-await server.listen();                                   // stdio (default)
-await server.listen({ transport: "http", port: 3000 });  // HTTP, POST /mcp
+content: {
+  type: "url",
+  url: "https://example.com/widget"
+}
 ```
 
-Stdio is the default because it's what most MCP hosts (Claude Desktop, Claude Code, Cursor,
-etc.) expect when they spawn a server as a child process. HTTP requests to `/mcp` are handled
-in **stateless mode** — each request gets its own transport, serialized through an internal
-queue. See the source comments in [`src/server/transport.ts`](./src/server/transport.ts) for
-the reasoning.
+By default, widgets work across all supported UI protocols:
 
-### `ToolContext`
+- MCP-UI
+- MCP Apps (SEP-1865)
+- OpenAI Apps SDK
 
-The second argument passed to every tool/prompt/resource callback:
+Need only specific protocols?
+
+```ts
+protocols: ["apps-sdk"]
+```
+
+or
+
+```ts
+protocols: ["mcp-ui", "mcp-apps"]
+```
+
+mcpfy automatically registers the required resources, MIME types and metadata for each protocol.
+
+No protocol-specific boilerplate required.
+
+> mcpfy doesn't build or bundle your frontend. Bring your own HTML, React, Vue, Svelte, or anything else.
+
+---
+
+## Start the server
+
+Default (stdio):
+
+```ts
+await server.listen();
+```
+
+HTTP:
+
+```ts
+await server.listen({
+  transport: "http",
+  port: 3000,
+});
+```
+
+Most MCP clients expect stdio.
+
+HTTP is ideal for hosted or remote MCP servers.
+
+---
+
+## Tool Context
+
+Every callback receives a context object.
 
 ```ts
 interface ToolContext {
-  sample(prompt: string, options?: SampleOptions): Promise<CreateMessageResult>;
-  elicit<T extends z.ZodObject<any>>(message: string, schema: T): Promise<ElicitResult & { data?: z.infer<T> }>;
-  reportProgress(progress: number, total?: number, message?: string): Promise<void>;
-  log(level: "debug" | "info" | "notice" | "warning" | "error", message: string): Promise<void>;
+  sample(prompt: string, options?): Promise<CreateMessageResult>;
+
+  elicit(message: string, schema);
+
+  reportProgress(progress, total?, message?);
+
+  log(level, message);
+
   sessionId?: string;
 }
 ```
 
-### Response helpers (`mcpfy-sdk/server`)
+This gives access to sampling, elicitation, progress reporting, structured logging and session information.
+
+---
+
+## Response Helpers
+
+Instead of manually creating MCP responses, return helpers.
 
 ```ts
-text(content: string)              // plain text content
-markdown(content: string)          // text content tagged mimeType: text/markdown
-image(data: string, mimeType?)     // base64 image content, default image/png
-object(data: Record<string, any>)  // JSON text + structuredContent
-error(message: string)             // isError: true result
+text("Hello")
+
+markdown("# Hello")
+
+image(base64)
+
+object({
+  success: true,
+})
+
+error("Something went wrong")
 ```
 
-These work as return values from tool, prompt, and resource callbacks alike.
+The same helpers work everywhere:
 
-## Client API (`mcpfy-sdk/client`)
+- tools
+- prompts
+- resources
+
+---
+
+# Client API
 
 ```ts
 import { MCPClient } from "mcpfy-sdk/client";
+```
 
+```ts
 const client = new MCPClient({
   mcpServers: {
-    // stdio server:
-    local: { command: "node", args: ["server.js"] },
-    // or an HTTP server:
-    remote: { url: "https://example.com/mcp" },
+    local: {
+      command: "node",
+      args: ["server.js"],
+    },
+
+    remote: {
+      url: "https://example.com/mcp",
+    },
   },
 });
 
 const session = await client.createSession("local");
+
 await session.listTools();
-await session.callTool("add", { a: 2, b: 3 });
+
+await session.callTool("add", {
+  a: 2,
+  b: 3,
+});
+
 await session.listPrompts();
-await session.getPrompt("greet", { name: "World" });
+
+await session.getPrompt("greet", {
+  name: "World",
+});
+
 await session.listResources();
+
 await session.readResource("app://greeting");
+
 await client.closeAllSessions();
 ```
 
-`command` in a server config selects the stdio connector; `url` selects the HTTP (Streamable
-HTTP) connector. `client.createAllSessions()` connects to every configured server at once.
+Use `command` for stdio servers or `url` for HTTP servers.
 
-## Widget bridge (`mcpfy-sdk/widget-bridge`)
+`client.createAllSessions()` connects to every configured server simultaneously.
 
-A small **browser-only** bundle you import from inside a widget's own HTML/JS — not from your
-server code — so the widget can talk back to whichever host it's running in.
+---
+
+# Widget Bridge
 
 ```ts
 import { connect, postToolCall } from "mcpfy-sdk/widget-bridge";
+```
 
-const { protocol, openai, app } = await connect({ name: "counter-widget", version: "1.0.0" });
+```ts
+const { protocol, openai, app } =
+  await connect({
+    name: "counter-widget",
+    version: "1.0.0",
+  });
 
 if (protocol === "apps-sdk") {
-  await openai.callTool("increment-counter", {});
-} else if (protocol === "mcp-apps") {
-  await app.callServerTool({ name: "increment-counter", arguments: {} });
-} else if (protocol === "mcp-ui") {
-  postToolCall("increment-counter", {}); // fire-and-forget, MCP-UI has no request/response handshake
+  await openai?.callTool?.("increment-counter", {});
+}
+
+if (protocol === "mcp-apps" && app) {
+  await app.callServerTool({
+    name: "increment-counter",
+    arguments: {},
+  });
+}
+
+if (protocol === "mcp-ui") {
+  postToolCall("increment-counter", {});
 }
 ```
 
-- **Apps SDK**: `connect()` just reads the host-injected `window.openai` — there's no handshake,
-  nothing to connect.
-- **MCP Apps**: wraps the *official* `App` class from `@modelcontextprotocol/ext-apps` (the spec
-  owners' own postMessage/JSON-RPC implementation — mcpfy doesn't reimplement this).
-- **MCP-UI**: `postToolCall`/`postPrompt`/`postLink`/`postIntent`/`postNotify` send the one-way
-  `postMessage` "UI actions" MCP-UI hosts expect — there's no connect handshake for this one.
+The bridge automatically detects where your widget is running.
 
-Import the pieces directly (`connectMcpApps`, `App`, `PostMessageTransport` from the MCP Apps
-side; `postToolCall` etc. for MCP-UI) if you'd rather not use the auto-detecting `connect()`.
+- **Apps SDK** uses the host injected `window.openai`
+- **MCP Apps** wraps the official App SDK
+- **MCP-UI** provides helper methods for postMessage communication
 
-## Examples
+You can also import each implementation directly if you don't need auto detection.
 
-- [`examples/hello-world`](../../examples/hello-world) — one tool, one prompt, one resource,
-  matching client snippets for both transports.
-- [`examples/widget-hello-world`](../../examples/widget-hello-world) — a widget registered for
-  all three UI-resource protocols at once.
+---
 
-## License
+# Examples
 
-MIT — see the [repo LICENSE](../../../LICENSE).
+- `examples/hello-world`  
+  Basic server with one tool, prompt and resource.
+
+- `examples/widget-hello-world`  
+  Interactive widget working across every supported UI protocol.
+
+---
+
+# License
+
+MIT
