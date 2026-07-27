@@ -25,3 +25,8 @@ venv/
 *.log
 .vscode/
 .idea/
+
+# local sanity-testing artifacts
+*.tgz
+typescript/packages/*/package-lock.json
+playground/

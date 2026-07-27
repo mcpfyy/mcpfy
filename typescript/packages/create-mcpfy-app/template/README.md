@@ -1,6 +1,6 @@
 # {{PROJECT_NAME}}
 
-An MCP server built with [mcpfy](https://www.npmjs.com/package/mcpfy) — exposes one tool
+An MCP server built with [mcpfy](https://www.npmjs.com/package/mcpfy-sdk) — exposes one tool
 (`add`), one resource (`app://greeting`), and one prompt (`greet`).
 
 ## Run
@@ -31,5 +31,5 @@ project's default:
 ## Next steps
 
 - Add more tools/prompts/resources in `src/server.ts` — see the
-  [mcpfy docs](https://www.npmjs.com/package/mcpfy) for the full API.
+  [mcpfy docs](https://www.npmjs.com/package/mcpfy-sdk) for the full API.
 - `npm run build && npm start` to run the compiled version.

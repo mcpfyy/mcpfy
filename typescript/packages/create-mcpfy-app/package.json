@@ -18,7 +18,7 @@
   "bin": {
     "create-mcpfy-app": "./dist/bin.js"
   },
-  "files": ["dist", "README.md"],
+  "files": ["dist", "README.md", "LICENSE"],
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   },

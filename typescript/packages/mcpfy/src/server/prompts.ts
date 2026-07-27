@@ -16,7 +16,7 @@ export interface PromptDefinition<TInput = Record<string, any>> {
   description?: string;
   /** A `z.object({...})` schema describing the prompt's arguments. */
   schema?: z.ZodObject<any>;
-  cb: PromptCallback<TInput>;
+  cb?: PromptCallback<TInput>;
 }
 
 function isGetPromptResult(result: unknown): result is GetPromptResult {
@@ -37,6 +37,9 @@ export function registerPrompt<TInput = Record<string, any>>(
   cb?: PromptCallback<TInput>
 ): void {
   const callback = cb ?? def.cb;
+  if (!callback) {
+    throw new Error(`Prompt "${def.name}" is missing a callback — pass it as the second argument to .prompt() or as the "cb" field on the definition.`);
+  }
 
   nativeServer.registerPrompt(
     def.name,

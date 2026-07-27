@@ -1,6 +1,6 @@
 # create-mcpfy-app
 
-Scaffold a working [mcpfy](https://www.npmjs.com/package/mcpfy) MCP server — one tool, one
+Scaffold a working [mcpfy](https://www.npmjs.com/package/mcpfy-sdk) MCP server — one tool, one
 prompt, one resource, already wired up — with a single command.
 
 ## Usage
@@ -56,7 +56,7 @@ my-server/
     └── server.ts   # one tool (add), one resource (app://greeting), one prompt (greet)
 ```
 
-`src/server.ts` is a complete, runnable [`mcpfy`](https://www.npmjs.com/package/mcpfy) server —
+`src/server.ts` is a complete, runnable [`mcpfy`](https://www.npmjs.com/package/mcpfy-sdk) server —
 open it, add your own `.tool()`/`.prompt()`/`.resource()` calls, and you're building. No
 generated abstractions to learn beyond the SDK itself.
 
