@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { cpSync, existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -59,6 +59,13 @@ function replacePlaceholders(filePath: string, replacements: Record<string, stri
 
 export function copyTemplate(targetDir: string, projectName: string, transport: Transport): void {
   cpSync(templateDir, targetDir, { recursive: true });
+  // The template ships a dotless "gitignore" because npm's packlist unconditionally strips any
+  // file literally named ".gitignore" (or ".npmignore") out of a published tarball, treating it
+  // as packing config rather than shippable content — so we rename it back on the way out.
+  const gitignorePath = join(targetDir, "gitignore");
+  if (existsSync(gitignorePath)) {
+    renameSync(gitignorePath, join(targetDir, ".gitignore"));
+  }
   const replacements = { "{{PROJECT_NAME}}": projectName, "{{DEFAULT_TRANSPORT}}": transport };
   for (const file of ["package.json", "README.md", "src/server.ts"]) {
     replacePlaceholders(join(targetDir, file), replacements);
