@@ -81,6 +81,12 @@ npx create-mcpfy-app@latest my-server --stdio
 npx create-mcpfy-app@latest my-server --http
 ```
 
+Set the default HTTP port (baked into `npm run dev` / `dev:http` scripts):
+
+```bash
+npx create-mcpfy-app@latest my-server --http --port 4000
+```
+
 or use the explicit form:
 
 ```bash

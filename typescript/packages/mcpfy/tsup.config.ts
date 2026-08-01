@@ -1,6 +1,6 @@
 import { defineConfig } from "tsup";
 
-const external = ["@modelcontextprotocol/sdk", "@modelcontextprotocol/ext-apps", "@mcp-ui/server", "zod"];
+const external = ["@modelcontextprotocol/sdk", "@modelcontextprotocol/ext-apps", "@mcp-ui/server", "zod", "jose"];
 
 export default defineConfig([
   {
@@ -8,6 +8,7 @@ export default defineConfig([
       "src/index": "src/index.ts",
       "src/server/index": "src/server/index.ts",
       "src/client/index": "src/client/index.ts",
+      "src/auth/index": "src/auth/index.ts",
     },
     format: ["cjs", "esm"],
     outDir: "dist",

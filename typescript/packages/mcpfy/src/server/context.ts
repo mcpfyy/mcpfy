@@ -8,6 +8,7 @@ import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/proto
 import type { ServerRequest, ServerNotification } from "@modelcontextprotocol/sdk/types.js";
 import type { z } from "zod";
 import { zodObjectToJsonSchema } from "./json-schema.js";
+import type { AuthInfo } from "./auth/types.js";
 
 export interface SampleOptions {
   timeout?: number;
@@ -40,9 +41,21 @@ export interface ToolContext {
 
   /** The transport session this call is associated with, if any. */
   sessionId?: string;
+
+  /** The authenticated caller, if this server has `auth` configured and the request passed it. Only set for HTTP requests. */
+  auth?: AuthInfo;
 }
 
 type Extra = RequestHandlerExtra<ServerRequest, ServerNotification>;
+
+// Requests are serialized one-at-a-time per `nativeServer` by the HTTP transport (see
+// server/transport.ts) — a single "current auth" slot per server instance is therefore safe,
+// and avoids threading an extra parameter through every registerTool/Prompt/Resource/Widget call.
+const currentAuthByServer = new WeakMap<OfficialMcpServer, AuthInfo | undefined>();
+
+export function setRequestAuth(nativeServer: OfficialMcpServer, auth: AuthInfo | undefined): void {
+  currentAuthByServer.set(nativeServer, auth);
+}
 
 export function buildToolContext(nativeServer: OfficialMcpServer, extra: Extra): ToolContext {
   const progressToken = extra._meta?.progressToken;
@@ -91,5 +104,6 @@ export function buildToolContext(nativeServer: OfficialMcpServer, extra: Extra):
     },
 
     sessionId: extra.sessionId,
+    auth: currentAuthByServer.get(nativeServer),
   };
 }

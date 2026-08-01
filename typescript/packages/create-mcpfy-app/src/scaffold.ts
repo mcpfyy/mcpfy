@@ -9,14 +9,40 @@ const here = dirname(fileURLToPath(import.meta.url));
 const templateDir = existsSync(join(here, "template")) ? join(here, "template") : join(here, "..", "template");
 
 export type Transport = "stdio" | "http";
+export type Auth = "none" | "header" | "oauth";
 
 export interface ScaffoldOptions {
   targetDir: string;
   projectName: string;
   transport: Transport;
+  auth: Auth;
+  /** Default HTTP listen port baked into the generated server (ignored for stdio). */
+  port?: number;
   install: boolean;
   packageManager: string;
 }
+
+export const AUTH_IMPORTS: Record<Auth, string> = {
+  none: "",
+  header: "",
+  oauth: ", jwksVerifier",
+};
+
+export const AUTH_CONFIGS: Record<Auth, string> = {
+  none: "",
+  header: `\n  auth: { type: "header", verify: (token) => token === process.env.API_KEY }, // set API_KEY in your environment`,
+  oauth: `\n  auth: {
+    type: "oauth",
+    // Replace with your real OIDC issuer + JWKS URL — works with Auth0, Keycloak, WorkOS, Clerk,
+    // etc. by just pointing this at that provider's endpoints, or use the oauthAuth0Provider /
+    // oauthWorkOSProvider shortcuts from mcpfy-sdk/server instead of jwksVerifier directly.
+    verifyToken: jwksVerifier({
+      issuer: "https://your-issuer.example.com",
+      jwksUri: "https://your-issuer.example.com/.well-known/jwks.json",
+    }),
+    authorizationServers: ["https://your-issuer.example.com"],
+  },`,
+};
 
 /** Turns an arbitrary directory/display name into a valid npm package name. */
 export function toPackageName(name: string): string {
@@ -57,7 +83,13 @@ function replacePlaceholders(filePath: string, replacements: Record<string, stri
   if (changed) writeFileSync(filePath, content, "utf-8");
 }
 
-export function copyTemplate(targetDir: string, projectName: string, transport: Transport): void {
+export function copyTemplate(
+  targetDir: string,
+  projectName: string,
+  transport: Transport,
+  auth: Auth,
+  port = 3000
+): void {
   cpSync(templateDir, targetDir, { recursive: true });
   // The template ships a dotless "gitignore" because npm's packlist unconditionally strips any
   // file literally named ".gitignore" (or ".npmignore") out of a published tarball, treating it
@@ -66,7 +98,15 @@ export function copyTemplate(targetDir: string, projectName: string, transport: 
   if (existsSync(gitignorePath)) {
     renameSync(gitignorePath, join(targetDir, ".gitignore"));
   }
-  const replacements = { "{{PROJECT_NAME}}": projectName, "{{DEFAULT_TRANSPORT}}": transport };
+  const replacements = {
+    "{{PROJECT_NAME}}": projectName,
+    "{{DEFAULT_TRANSPORT}}": transport,
+    "{{DEFAULT_PORT}}": String(port),
+    // When default transport is http, `npm run dev` should also bind the chosen port.
+    "{{DEV_PORT_ARGS}}": transport === "http" ? ` --port ${port}` : "",
+    "{{AUTH_IMPORT}}": AUTH_IMPORTS[auth],
+    "{{AUTH_CONFIG}}": AUTH_CONFIGS[auth],
+  };
   for (const file of ["package.json", "README.md", "src/server.ts"]) {
     replacePlaceholders(join(targetDir, file), replacements);
   }
@@ -85,7 +125,13 @@ export function runInstall(packageManager: string, cwd: string): Promise<void> {
 
 export async function scaffold(options: ScaffoldOptions): Promise<void> {
   assertEmptyTarget(options.targetDir);
-  copyTemplate(options.targetDir, options.projectName, options.transport);
+  copyTemplate(
+    options.targetDir,
+    options.projectName,
+    options.transport,
+    options.auth,
+    options.port ?? 3000
+  );
   if (options.install) {
     await runInstall(options.packageManager, options.targetDir);
   }

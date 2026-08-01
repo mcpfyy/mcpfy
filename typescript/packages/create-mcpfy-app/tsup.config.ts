@@ -1,7 +1,7 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: ["src/bin.ts"],
+  entry: ["src/bin.ts", "src/generate.ts", "src/scaffold.ts"],
   format: ["esm"],
   outDir: "dist",
   platform: "node",

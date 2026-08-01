@@ -1,13 +1,24 @@
 #!/usr/bin/env node
 import { createInterface } from "node:readline/promises";
 import { basename, relative, resolve } from "node:path";
-import { detectPackageManager, scaffold, toPackageName, type Transport } from "./scaffold.js";
+import { detectPackageManager, scaffold, toPackageName, type Auth, type Transport } from "./scaffold.js";
 
 interface ParsedArgs {
   name?: string;
   install: boolean;
   packageManager?: string;
   transport?: Transport;
+  auth?: Auth;
+  port?: number;
+}
+
+function parsePortValue(value: string | undefined, flag: string): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) {
+    console.error(`Invalid ${flag} value "${value}" — expected a non-negative integer (e.g. 3000).`);
+    process.exit(1);
+  }
+  return n;
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
@@ -29,6 +40,17 @@ function parseArgs(argv: string[]): ParsedArgs {
       args.transport = "stdio";
     } else if (arg === "--http") {
       args.transport = "http";
+    } else if (arg === "--port") {
+      args.port = parsePortValue(argv[++i], "--port");
+    } else if (arg.startsWith("--port=")) {
+      args.port = parsePortValue(arg.slice("--port=".length), "--port");
+    } else if (arg === "--auth") {
+      const value = argv[++i];
+      if (value !== "none" && value !== "header" && value !== "oauth") {
+        console.error(`Invalid --auth value "${value}" — expected "none", "header", or "oauth".`);
+        process.exit(1);
+      }
+      args.auth = value;
     } else if (!arg.startsWith("-") && !args.name) {
       args.name = arg;
     }
@@ -75,13 +97,43 @@ async function promptForTransport(ask: (q: string) => Promise<string>): Promise<
   }
 }
 
+async function promptForAuth(ask: (q: string) => Promise<string>): Promise<Auth> {
+  console.log("\nShould this server require authentication?");
+  console.log("  1) none    — no auth (default)");
+  console.log("  2) header  — a static API key sent as a bearer token");
+  console.log("  3) oauth   — full OAuth (PKCE + Dynamic Client Registration + JWKS verification)");
+  for (;;) {
+    const answer = await ask("Select 1, 2, or 3 (default: 1): ");
+    if (answer === "" || answer === "1" || answer.toLowerCase() === "none") return "none";
+    if (answer === "2" || answer.toLowerCase() === "header") return "header";
+    if (answer === "3" || answer.toLowerCase() === "oauth") return "oauth";
+    console.log(`"${answer}" isn't a valid choice — enter 1, 2, 3, "none", "header", or "oauth".`);
+  }
+}
+
+async function promptForPort(ask: (q: string) => Promise<string>): Promise<number> {
+  for (;;) {
+    const answer = await ask("HTTP port (default: 3000): ");
+    if (answer === "") return 3000;
+    const n = Number(answer);
+    if (Number.isFinite(n) && Number.isInteger(n) && n >= 0) return n;
+    console.log(`"${answer}" isn't a valid port — enter a non-negative integer (e.g. 3000).`);
+  }
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
-  const needsPrompt = args.name === undefined || args.transport === undefined;
+  const needsPrompt = args.name === undefined || args.transport === undefined || args.auth === undefined;
   const prompter = needsPrompt ? createPrompter() : undefined;
 
   const rawName = args.name ?? (await promptForName(prompter!.ask));
   const transport = args.transport ?? (await promptForTransport(prompter!.ask));
+  const auth = args.auth ?? (await promptForAuth(prompter!.ask));
+  // Port only matters for HTTP. Prompt when interactive + http and --port wasn't given.
+  let port = args.port ?? 3000;
+  if (transport === "http" && args.port === undefined && prompter) {
+    port = await promptForPort(prompter.ask);
+  }
   prompter?.close();
 
   // `rawName` may be a plain project name ("my-app") or a path (relative or absolute,
@@ -91,10 +143,20 @@ async function main(): Promise<void> {
   const projectName = toPackageName(basename(targetDir));
   const packageManager = args.packageManager ?? detectPackageManager();
 
-  console.log(`\nScaffolding "${projectName}" (${transport} transport) in ${targetDir}...\n`);
+  const authSuffix = auth === "none" ? "" : `, ${auth} auth`;
+  const portSuffix = transport === "http" ? `, port ${port}` : "";
+  console.log(`\nScaffolding "${projectName}" (${transport} transport${authSuffix}${portSuffix}) in ${targetDir}...\n`);
 
   try {
-    await scaffold({ targetDir, projectName, transport, install: args.install, packageManager });
+    await scaffold({
+      targetDir,
+      projectName,
+      transport,
+      auth,
+      port,
+      install: args.install,
+      packageManager,
+    });
   } catch (err) {
     console.error(`\nFailed: ${err instanceof Error ? err.message : err}`);
     process.exit(1);
@@ -108,7 +170,11 @@ async function main(): Promise<void> {
   if (!args.install) {
     console.log(`  ${packageManager} install`);
   }
-  console.log(`  ${packageManager} run dev   # starts with the ${transport} transport\n`);
+  if (transport === "http") {
+    console.log(`  ${packageManager} run dev   # HTTP on http://localhost:${port}/mcp\n`);
+  } else {
+    console.log(`  ${packageManager} run dev   # starts with the ${transport} transport\n`);
+  }
 }
 
 main();

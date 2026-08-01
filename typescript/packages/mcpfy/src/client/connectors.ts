@@ -1,4 +1,5 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
 import type {
   CallToolResult,
   GetPromptResult,
@@ -10,7 +11,14 @@ import type {
 
 export type ServerConfig =
   | { command: string; args?: string[]; env?: Record<string, string>; cwd?: string }
-  | { url: string; headers?: Record<string, string> };
+  | {
+      url: string;
+      headers?: Record<string, string>;
+      /** Sent as `Authorization: Bearer <authToken>` — overwrites `headers.Authorization` if both are set. */
+      authToken?: string;
+      /** For OAuth-protected servers — e.g. a `NodeOAuthClientProvider` from `mcpfy-sdk/auth`. */
+      authProvider?: OAuthClientProvider;
+    };
 
 const CLIENT_INFO = { name: "mcpfy-client", version: "0.1.0" };
 
@@ -82,14 +90,19 @@ export class StdioConnector extends BaseConnector {
 }
 
 export class HttpConnector extends BaseConnector {
+  private readonly headers?: Record<string, string>;
+
   constructor(private readonly config: Extract<ServerConfig, { url: string }>) {
     super();
+    this.headers = config.headers ? { ...config.headers } : config.authToken ? {} : undefined;
+    if (config.authToken) this.headers!.Authorization = `Bearer ${config.authToken}`;
   }
 
   protected async createTransport() {
     const { StreamableHTTPClientTransport } = await import("@modelcontextprotocol/sdk/client/streamableHttp.js");
     return new StreamableHTTPClientTransport(new URL(this.config.url), {
-      requestInit: this.config.headers ? { headers: this.config.headers } : undefined,
+      requestInit: this.headers ? { headers: this.headers } : undefined,
+      authProvider: this.config.authProvider,
     });
   }
 }

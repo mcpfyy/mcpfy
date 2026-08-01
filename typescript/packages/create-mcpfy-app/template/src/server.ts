@@ -1,10 +1,10 @@
-import { MCPServer, markdown, object, text } from "mcpfy-sdk/server";
+import { MCPServer, markdown, object, text{{AUTH_IMPORT}} } from "mcpfy-sdk/server";
 import { z } from "zod";
 
 const server = new MCPServer({
   name: "{{PROJECT_NAME}}",
   version: "1.0.0",
-  description: "An MCP server built with mcpfy.",
+  description: "An MCP server built with mcpfy.",{{AUTH_CONFIG}}
 });
 
 server.tool(
@@ -28,10 +28,11 @@ server.prompt(
 
 // Defaults to the transport chosen at scaffold time ({{DEFAULT_TRANSPORT}}); pass --http or
 // --stdio to override for a single run without touching this file.
+// HTTP port priority: --port N → PORT env → 3000 (npm scripts pass --port {{DEFAULT_PORT}}).
 const transport = process.argv.includes("--http")
   ? "http"
   : process.argv.includes("--stdio")
     ? "stdio"
     : "{{DEFAULT_TRANSPORT}}";
 
-await server.listen(transport === "http" ? { transport: "http", port: 3000 } : { transport: "stdio" });
+await server.listen(transport === "http" ? { transport: "http" } : { transport: "stdio" });

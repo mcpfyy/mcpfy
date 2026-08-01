@@ -23,10 +23,11 @@ describe("http transport end-to-end", () => {
     );
     server.resource({ name: "greeting", uri: "app://greeting" }, async () => markdown("# Hello from mcpfy!"));
 
-    const port = 34000 + Math.floor(Math.random() * 1000);
-    await server.listen({ transport: "http", port });
+    const info = await server.listen({ transport: "http", port: 0, silent: true });
+    expect(info.url).toMatch(/^http:\/\/localhost:\d+\/mcp$/);
+    expect(info.port).toBeGreaterThan(0);
 
-    client = new MCPClient({ mcpServers: { fixture: { url: `http://localhost:${port}/mcp` } } });
+    client = new MCPClient({ mcpServers: { fixture: { url: info.url! } } });
     const session = await client.createSession("fixture");
 
     const tools = await session.listTools();

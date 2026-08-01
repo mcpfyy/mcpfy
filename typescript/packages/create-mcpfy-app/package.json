@@ -1,7 +1,7 @@
 {
   "name": "create-mcpfy-app",
   "type": "module",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Scaffold a working MCP server (tools, prompts, resources) with one command.",
   "author": "mcpfy",
   "license": "MIT",
@@ -16,7 +16,12 @@
   },
   "keywords": ["mcp", "mcpfy", "model-context-protocol", "create", "scaffold", "cli", "starter", "template"],
   "bin": {
-    "create-mcpfy-app": "./dist/bin.js"
+    "create-mcpfy-app": "dist/bin.js"
+  },
+  "exports": {
+    ".": "./dist/generate.js",
+    "./generate": "./dist/generate.js",
+    "./scaffold": "./dist/scaffold.js"
   },
   "files": ["dist", "README.md", "LICENSE"],
   "engines": {

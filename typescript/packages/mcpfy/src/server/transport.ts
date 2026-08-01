@@ -1,7 +1,18 @@
 import type { McpServer as OfficialMcpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { AddressInfo } from "node:net";
+import { checkAuth } from "./auth/middleware.js";
+import { buildProtectedResourceMetadata } from "./auth/well-known.js";
+import type { AuthConfig } from "./auth/types.js";
+import { setRequestAuth } from "./context.js";
 
 export interface HttpHandle {
+  /** Bound TCP port (resolved after listen — useful when you passed `port: 0`). */
+  port: number;
+  /** Host the server is listening on. */
+  host: string;
+  /** Local MCP endpoint, e.g. `http://localhost:3000/mcp`. */
+  url: string;
   close(): Promise<void>;
 }
 
@@ -11,9 +22,33 @@ export async function startStdio(nativeServer: OfficialMcpServer): Promise<void>
   await nativeServer.connect(transport);
 }
 
+function formatListenUrl(host: string, port: number): string {
+  const displayHost = host === "0.0.0.0" || host === "::" ? "localhost" : host;
+  const needsBrackets = displayHost.includes(":") && !displayHost.startsWith("[");
+  const hostPart = needsBrackets ? `[${displayHost}]` : displayHost;
+  return `http://${hostPart}:${port}/mcp`;
+}
+
+function deriveBaseUrl(req: IncomingMessage, options: { port: number; host: string }): string {
+  const proto = (req.headers["x-forwarded-proto"] as string | undefined)?.split(",")[0] ?? "http";
+  const host = req.headers.host ?? `${options.host}:${options.port}`;
+  return `${proto}://${host}`;
+}
+
+function writeUnauthorized(res: ServerResponse, auth: AuthConfig, req: IncomingMessage, options: { port: number; host: string }): void {
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (auth.type === "oauth") {
+    const baseUrl = deriveBaseUrl(req, options);
+    headers["www-authenticate"] = `Bearer resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`;
+  }
+  res
+    .writeHead(401, headers)
+    .end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32001, message: "Unauthorized" }, id: null }));
+}
+
 export async function startHttp(
   nativeServer: OfficialMcpServer,
-  options: { port: number; host: string }
+  options: { port: number; host: string; auth?: AuthConfig; silent?: boolean }
 ): Promise<HttpHandle> {
   const { StreamableHTTPServerTransport } = await import("@modelcontextprotocol/sdk/server/streamableHttp.js");
   const http = await import("node:http");
@@ -32,6 +67,8 @@ export async function startHttp(
   // outside the queue — per spec, clients treat 405 there as "not supported" and
   // carry on, but leaving one open would otherwise block every request behind it.
   let queue: Promise<void> = Promise.resolve();
+  // Mutated after listen() so request handlers see the real bound port (e.g. port 0).
+  const listenState = { port: options.port, host: options.host };
 
   async function handlePost(req: IncomingMessage, res: ServerResponse): Promise<void> {
     try {
@@ -56,6 +93,14 @@ export async function startHttp(
   }
 
   const httpServer = http.createServer((req: IncomingMessage, res: ServerResponse) => {
+    if (options.auth?.type === "oauth" && req.method === "GET" && req.url === "/.well-known/oauth-protected-resource") {
+      const baseUrl = deriveBaseUrl(req, listenState);
+      res
+        .writeHead(200, { "content-type": "application/json" })
+        .end(JSON.stringify(buildProtectedResourceMetadata(options.auth, baseUrl)));
+      return;
+    }
+
     if (req.url !== "/mcp") {
       res.writeHead(404).end();
       return;
@@ -70,6 +115,25 @@ export async function startHttp(
       );
       return;
     }
+
+    if (options.auth) {
+      const auth = options.auth;
+      queue = queue.then(async () => {
+        const result = await checkAuth(req, auth);
+        if (!result.ok) {
+          writeUnauthorized(res, auth, req, listenState);
+          return;
+        }
+        setRequestAuth(nativeServer, result.auth);
+        try {
+          await handlePost(req, res);
+        } finally {
+          setRequestAuth(nativeServer, undefined);
+        }
+      });
+      return;
+    }
+
     queue = queue.then(() => handlePost(req, res));
   });
 
@@ -78,7 +142,20 @@ export async function startHttp(
     httpServer.listen(options.port, options.host, () => resolve());
   });
 
+  const address = httpServer.address() as AddressInfo | null;
+  const boundPort = address?.port ?? options.port;
+  listenState.port = boundPort;
+  const url = formatListenUrl(options.host, boundPort);
+
+  if (!options.silent) {
+    // eslint-disable-next-line no-console
+    console.log(`MCP server listening on ${url}  (port ${boundPort})`);
+  }
+
   return {
+    port: boundPort,
+    host: options.host,
+    url,
     close: () => new Promise<void>((resolve) => httpServer.close(() => resolve())),
   };
 }

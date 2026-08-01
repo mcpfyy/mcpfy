@@ -27,4 +27,5 @@ server.prompt(
 );
 
 const useHttp = process.argv.includes("--http");
-await server.listen(useHttp ? { transport: "http", port: 3000 } : { transport: "stdio" });
+// Port resolution (HTTP): options.port → --port N → PORT env → 3000
+await server.listen(useHttp ? { transport: "http" } : { transport: "stdio" });
