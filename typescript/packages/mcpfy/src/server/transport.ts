@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import { checkAuth } from "./auth/middleware.js";
 import { buildProtectedResourceMetadata } from "./auth/well-known.js";
 import type { AuthConfig } from "./auth/types.js";
-import { setRequestAuth } from "./context.js";
+import { setRequestAuth, setRequestHeaders, extractForwardableAuthHeaders } from "./context.js";
 
 export interface HttpHandle {
   /** Bound TCP port (resolved after listen — useful when you passed `port: 0`). */
@@ -125,16 +125,25 @@ export async function startHttp(
           return;
         }
         setRequestAuth(nativeServer, result.auth);
+        setRequestHeaders(nativeServer, extractForwardableAuthHeaders(req));
         try {
           await handlePost(req, res);
         } finally {
           setRequestAuth(nativeServer, undefined);
+          setRequestHeaders(nativeServer, undefined);
         }
       });
       return;
     }
 
-    queue = queue.then(() => handlePost(req, res));
+    queue = queue.then(async () => {
+      setRequestHeaders(nativeServer, extractForwardableAuthHeaders(req));
+      try {
+        await handlePost(req, res);
+      } finally {
+        setRequestHeaders(nativeServer, undefined);
+      }
+    });
   });
 
   await new Promise<void>((resolve, reject) => {

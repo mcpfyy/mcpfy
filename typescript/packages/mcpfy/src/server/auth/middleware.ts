@@ -18,9 +18,9 @@ export async function checkAuth(req: IncomingMessage, config: AuthConfig): Promi
 
   if (config.type === "header") {
     const valid = await config.verify(token);
-    return valid ? { ok: true, auth: { claims: {} } } : { ok: false };
+    return valid ? { ok: true, auth: { claims: {}, token } } : { ok: false };
   }
 
   const auth = await config.verifyToken(token);
-  return auth ? { ok: true, auth } : { ok: false };
+  return auth ? { ok: true, auth: { ...auth, token: auth.token ?? token } } : { ok: false };
 }

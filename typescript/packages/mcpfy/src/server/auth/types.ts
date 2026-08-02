@@ -6,6 +6,8 @@ export interface AuthInfo {
   scopes?: string[];
   /** The raw token payload (JWT claims for OAuth; empty for header auth). */
   claims: Record<string, unknown>;
+  /** Raw bearer token from `Authorization`, when available — useful for forwarding to upstream APIs. */
+  token?: string;
 }
 
 export type AuthConfig =

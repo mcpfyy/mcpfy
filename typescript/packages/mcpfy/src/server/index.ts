@@ -11,6 +11,11 @@ export type {
   ReadResourceTemplateCallback,
 } from "./resources.js";
 export type { ToolContext, SampleOptions, LogLevel } from "./context.js";
+export {
+  forwardAuthHeaders,
+  extractForwardableAuthHeaders,
+  FORWARDABLE_AUTH_HEADER_NAMES,
+} from "./context.js";
 export type {
   UIResourceDefinition,
   WidgetCallback,

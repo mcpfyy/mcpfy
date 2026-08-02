@@ -1,7 +1,7 @@
 {
   "name": "mcpfy-sdk",
   "type": "module",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Minimal TypeScript SDK for building and consuming MCP tools, prompts, resources, and UI widgets (MCP-UI, MCP Apps, Apps SDK).",
   "author": "mcpfy",
   "license": "MIT",

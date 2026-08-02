@@ -163,58 +163,59 @@ function collectSchemaFields(request: ExportToolSpec["request"]): Record<string,
 
 function emitOutboundAuthHelper(authSpec?: ExportAuthSpec | null): string {
   const type = authSpec?.type || "none";
+  let envFallback: string;
   if (type === "none") {
-    return `function outboundAuthHeaders(): Record<string, string> {
-  return {};
-}
-`;
+    envFallback = `  return {};`;
+  } else if (type === "bearer") {
+    envFallback = `  const token = process.env.API_TOKEN;
+  if (!token) {
+    throw new Error(
+      "No auth on the MCP request and API_TOKEN is unset. Pass Authorization on the MCP HTTP connection, or set API_TOKEN in .env."
+    );
   }
-  if (type === "bearer") {
-    return `function outboundAuthHeaders(): Record<string, string> {
-  const token = process.env.API_TOKEN;
-  if (!token) throw new Error("Set API_TOKEN in your environment (Bearer token for upstream API).");
-  return { Authorization: \`Bearer \${token}\` };
-}
-`;
-  }
-  if (type === "apikey") {
+  return { Authorization: \`Bearer \${token}\` };`;
+  } else if (type === "apikey") {
     const header = authSpec?.config?.apiKeyHeader || "X-API-Key";
-    return `function outboundAuthHeaders(): Record<string, string> {
-  const key = process.env.API_KEY;
-  if (!key) throw new Error("Set API_KEY in your environment.");
-  return { ${JSON.stringify(header)}: key };
-}
-`;
+    envFallback = `  const key = process.env.API_KEY;
+  if (!key) {
+    throw new Error(
+      "No auth on the MCP request and API_KEY is unset. Pass x-api-key (or Authorization) on the MCP HTTP connection, or set API_KEY in .env."
+    );
   }
-  if (type === "basic") {
-    return `function outboundAuthHeaders(): Record<string, string> {
-  const username = process.env.API_USERNAME;
+  return { ${JSON.stringify(header)}: key };`;
+  } else if (type === "basic") {
+    envFallback = `  const username = process.env.API_USERNAME;
   const password = process.env.API_PASSWORD ?? "";
-  if (!username) throw new Error("Set API_USERNAME (and optionally API_PASSWORD) in your environment.");
+  if (!username) {
+    throw new Error(
+      "No auth on the MCP request and API_USERNAME is unset. Pass Authorization on the MCP HTTP connection, or set API_USERNAME/API_PASSWORD in .env."
+    );
+  }
   const encoded = Buffer.from(\`\${username}:\${password}\`).toString("base64");
-  return { Authorization: \`Basic \${encoded}\` };
-}
-`;
-  }
-  // custom — use AUTH_HEADER_<NAME> env vars for each configured header key
-  const keys = Object.keys(authSpec?.config?.headers || {});
-  if (keys.length === 0) {
-    return `function outboundAuthHeaders(): Record<string, string> {
-  return {};
-}
-`;
-  }
-  const entries = keys
-    .map((key) => {
-      const envName = `AUTH_HEADER_${sanitizeIdent(key).toUpperCase()}`;
-      return `  const ${sanitizeIdent(key)} = process.env[${JSON.stringify(envName)}];
+  return { Authorization: \`Basic \${encoded}\` };`;
+  } else {
+    const keys = Object.keys(authSpec?.config?.headers || {});
+    if (keys.length === 0) {
+      envFallback = `  return {};`;
+    } else {
+      const entries = keys
+        .map((key) => {
+          const envName = `AUTH_HEADER_${sanitizeIdent(key).toUpperCase()}`;
+          return `  const ${sanitizeIdent(key)} = process.env[${JSON.stringify(envName)}];
   if (${sanitizeIdent(key)}) headers[${JSON.stringify(key)}] = ${sanitizeIdent(key)};`;
-    })
-    .join("\n");
-  return `function outboundAuthHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {};
+        })
+        .join("\n");
+      envFallback = `  const headers: Record<string, string> = {};
 ${entries}
-  return headers;
+  return headers;`;
+    }
+  }
+
+  return `function outboundAuthHeaders(ctx?: Pick<ToolContext, "requestHeaders" | "auth">): Record<string, string> {
+  // Prefer credentials from the inbound MCP HTTP request (same as hosted MCP-backend).
+  const fromRequest = forwardAuthHeaders(ctx);
+  if (Object.keys(fromRequest).length > 0) return fromRequest;
+${envFallback}
 }
 `;
 }
@@ -275,6 +276,7 @@ async function callUpstream(opts: {
   queryParams?: Record<string, unknown>;
   bodyInput?: Record<string, unknown>;
   args: Record<string, unknown>;
+  ctx?: Pick<ToolContext, "requestHeaders" | "auth">;
 }): Promise<{ status: number; statusText: string; data: unknown }> {
   const method = opts.method.toUpperCase();
   let url = applyPathParams(opts.url, opts.pathParams, opts.args);
@@ -282,7 +284,7 @@ async function callUpstream(opts: {
   const headers: Record<string, string> = {
     Accept: "application/json",
     "Content-Type": "application/json",
-    ...outboundAuthHeaders(),
+    ...outboundAuthHeaders(opts.ctx),
     ...(opts.headers || {}),
   };
   const body = buildBody(opts.bodyInput, opts.args, method);
@@ -341,7 +343,7 @@ server.tool(
     description: ${JSON.stringify(tool.description || tool.toolName)},
     schema: ${schema},
   },
-  async (args) => {
+  async (args, ctx) => {
     const result = await callUpstream({
       method: ${JSON.stringify(method)},
       url: ${JSON.stringify(tool.request.url)},
@@ -350,6 +352,7 @@ server.tool(
       queryParams: ${queryParamsLit},
       bodyInput: ${bodyInputLit},
       args: args as Record<string, unknown>,
+      ctx,
     });
     const payload = ${resultExpr};
     return text(typeof payload === "string" ? payload : JSON.stringify(payload, null, 2));
@@ -400,7 +403,12 @@ server.prompt(
 }
 
 function buildEnvExample(authSpec?: ExportAuthSpec | null, serverAuth?: Auth): string {
-  const lines = ["# Copy to .env and fill in values", ""];
+  const lines = [
+    "# Copy to .env and fill in values (optional if the MCP client sends auth headers)",
+    "# Prefer: pass Authorization / x-api-key / x-auth-token on the MCP HTTP connection",
+    "# (same as hosted MCPfy). Env below is only a fallback for local/stdio.",
+    "",
+  ];
   if (serverAuth === "header") {
     lines.push("# Protects the MCP HTTP endpoint");
     lines.push("API_KEY=change-me");
@@ -408,10 +416,10 @@ function buildEnvExample(authSpec?: ExportAuthSpec | null, serverAuth?: Auth): s
   }
   const type = authSpec?.type || "none";
   if (type === "bearer") {
-    lines.push("# Upstream API Bearer token");
+    lines.push("# Fallback upstream API Bearer token");
     lines.push("API_TOKEN=");
   } else if (type === "apikey") {
-    lines.push("# Upstream API key");
+    lines.push("# Fallback upstream API key");
     lines.push("API_KEY=");
   } else if (type === "basic") {
     lines.push("API_USERNAME=");
@@ -441,9 +449,15 @@ Includes **${toolCount}** tool(s) and **${promptCount}** prompt(s) exported from
 
 \`\`\`bash
 npm install            # required before npm run dev (installs tsx + mcpfy-sdk)
-cp .env.example .env   # fill in upstream API credentials
+cp .env.example .env   # optional fallback credentials for local/stdio
 npm run dev            # default transport: ${transport}
 \`\`\`
+
+### Upstream API auth
+
+Same model as hosted MCPfy: pass \`Authorization\`, \`x-api-key\`, or \`x-auth-token\` on the **MCP HTTP** connection; tools forward those headers to your API.
+
+Env vars in \`.env\` are only a fallback when the MCP request has no auth headers (e.g. stdio).
 
 - \`npm run dev:http\` — HTTP on :3000 (override with \`--port 4000\` or \`PORT=4000\`)
 - \`npm run dev:stdio\` — stdio (Claude Desktop / Cursor local)
@@ -484,7 +498,7 @@ export function generateProjectFiles(options: GenerateProjectOptions): Record<st
   const toolBlocks = tools.map(emitToolRegistration).join("\n");
   const promptBlocks = prompts.map(emitPromptRegistration).join("\n");
 
-  const serverTs = `import { MCPServer, text${AUTH_IMPORTS[serverAuth]} } from "mcpfy-sdk/server";
+  const serverTs = `import { MCPServer, text, forwardAuthHeaders, type ToolContext${AUTH_IMPORTS[serverAuth]} } from "mcpfy-sdk/server";
 import { z } from "zod";
 
 const server = new MCPServer({
