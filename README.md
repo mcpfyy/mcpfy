@@ -10,6 +10,8 @@
 </pre>
 
 
+⚡ Deploy in minutes | 🔐 OAuth built in | ☁️ Remote MCP ready | 🤖 Works with Claude, OpenAI & any other client
+
 A SDK for building **MCP tools, prompts, resources, and widgets**.
 
 Supports **HTTP**, **stdio**, and widgets that work across **MCP-UI**, **MCP Apps**, and **OpenAI Apps SDK**.
