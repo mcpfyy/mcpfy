@@ -33,7 +33,7 @@ describe("oauth auth", () => {
 
     const noAuth = await fetch(`${base}/mcp`, {
       method: "POST",
-      headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
+      headers: { "content-type": "application/json", accept: "application/json, text/event-stream", "x-forwarded-proto": "javascript" },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
     });
     expect(noAuth.status).toBe(401);

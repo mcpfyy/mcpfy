@@ -5,6 +5,7 @@ import { checkAuth } from "./auth/middleware.js";
 import { buildProtectedResourceMetadata } from "./auth/well-known.js";
 import type { AuthConfig } from "./auth/types.js";
 import { setRequestAuth, setRequestHeaders, extractForwardableAuthHeaders } from "./context.js";
+import { deriveBaseUrl, validateRequestHeaders, type HttpSecurityOptions } from "./http-security.js";
 
 export interface HttpHandle {
   /** Bound TCP port (resolved after listen — useful when you passed `port: 0`). */
@@ -29,12 +30,6 @@ function formatListenUrl(host: string, port: number): string {
   return `http://${hostPart}:${port}/mcp`;
 }
 
-function deriveBaseUrl(req: IncomingMessage, options: { port: number; host: string }): string {
-  const proto = (req.headers["x-forwarded-proto"] as string | undefined)?.split(",")[0] ?? "http";
-  const host = req.headers.host ?? `${options.host}:${options.port}`;
-  return `${proto}://${host}`;
-}
-
 function writeUnauthorized(res: ServerResponse, auth: AuthConfig, req: IncomingMessage, options: { port: number; host: string }): void {
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (auth.type === "oauth") {
@@ -48,7 +43,7 @@ function writeUnauthorized(res: ServerResponse, auth: AuthConfig, req: IncomingM
 
 export async function startHttp(
   nativeServer: OfficialMcpServer,
-  options: { port: number; host: string; auth?: AuthConfig; silent?: boolean }
+  options: HttpSecurityOptions & { auth?: AuthConfig; silent?: boolean }
 ): Promise<HttpHandle> {
   const { StreamableHTTPServerTransport } = await import("@modelcontextprotocol/sdk/server/streamableHttp.js");
   const http = await import("node:http");
@@ -93,6 +88,8 @@ export async function startHttp(
   }
 
   const httpServer = http.createServer((req: IncomingMessage, res: ServerResponse) => {
+    if (!validateRequestHeaders(req, res, { ...options, ...listenState })) return;
+
     if (options.auth?.type === "oauth" && req.method === "GET" && req.url === "/.well-known/oauth-protected-resource") {
       const baseUrl = deriveBaseUrl(req, listenState);
       res
