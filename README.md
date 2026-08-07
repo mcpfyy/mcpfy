@@ -125,6 +125,14 @@ console.log(await session.callTool("hello"));
 - 🎨 **Widget Example**  
   `typescript/examples/widget-hello-world`
 
+
+---
+
+## Roadmap
+
+  [`ROADMAP.md`](./ROADMAP.md)
+
+
 ---
 
 ## Contributing
