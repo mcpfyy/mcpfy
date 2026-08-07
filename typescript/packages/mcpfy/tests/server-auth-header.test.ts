@@ -12,11 +12,17 @@ describe("header auth", () => {
     server = undefined;
   });
 
-  it("rejects requests without a token, rejects wrong tokens, accepts the right one", async () => {
+  it("rejects missing auth, recovers from verifier errors, and accepts valid auth", async () => {
     server = new MCPServer({
       name: "auth-fixture",
       version: "1.0.0",
-      auth: { type: "header", verify: (token) => token === "correct-token" },
+      auth: {
+        type: "header",
+        verify: (token) => {
+          if (token === "wrong-token") throw new Error("Verifier failed");
+          return token === "correct-token";
+        },
+      },
     });
     server.tool(
       { name: "whoami", schema: z.object({}), outputSchema: z.object({ authenticated: z.boolean() }) },

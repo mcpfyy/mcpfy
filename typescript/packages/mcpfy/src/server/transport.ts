@@ -119,8 +119,8 @@ export async function startHttp(
     if (options.auth) {
       const auth = options.auth;
       queue = queue.then(async () => {
-        const result = await checkAuth(req, auth);
-        if (!result.ok) {
+        const result = await checkAuth(req, auth).catch(() => undefined);
+        if (!result?.ok) {
           writeUnauthorized(res, auth, req, listenState);
           return;
         }
