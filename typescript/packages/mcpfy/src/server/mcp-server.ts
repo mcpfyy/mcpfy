@@ -31,6 +31,10 @@ export interface ListenOptions {
   port?: number;
   /** HTTP only. Defaults to "localhost". */
   host?: string;
+  /** HTTP only. Exact allowed Host headers. Loopback listeners allow loopback hosts by default; pass `[]` to disable. */
+  allowedHosts?: string[];
+  /** HTTP only. Exact allowed browser Origins. Loopback listeners allow loopback origins by default; pass `[]` to disable. */
+  allowedOrigins?: string[];
   /** HTTP only. Suppress the startup log line with the local URL. Defaults to false. */
   silent?: boolean;
 }
@@ -153,6 +157,8 @@ export class MCPServer {
       port,
       host,
       auth: this.config.auth,
+      allowedHosts: options.allowedHosts,
+      allowedOrigins: options.allowedOrigins,
       silent: options.silent,
     });
 
