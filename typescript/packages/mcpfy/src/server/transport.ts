@@ -5,6 +5,7 @@ import { checkAuth } from "./auth/middleware.js";
 import { buildProtectedResourceMetadata } from "./auth/well-known.js";
 import type { AuthConfig } from "./auth/types.js";
 import { setRequestAuth, setRequestHeaders, extractForwardableAuthHeaders } from "./context.js";
+import { deriveBaseUrl, validateRequestHeaders, type HttpSecurityOptions } from "./http-security.js";
 
 export interface HttpHandle {
   /** Bound TCP port (resolved after listen — useful when you passed `port: 0`). */
@@ -29,13 +30,6 @@ function formatListenUrl(host: string, port: number): string {
   return `http://${hostPart}:${port}/mcp`;
 }
 
-function deriveBaseUrl(req: IncomingMessage, options: { port: number; host: string }): string {
-  const forwardedProto = (req.headers["x-forwarded-proto"] as string | undefined)?.split(",")[0];
-  const proto = forwardedProto === "https" ? "https" : "http";
-  const host = req.headers.host ?? `${options.host}:${options.port}`;
-  return `${proto}://${host}`;
-}
-
 function writeUnauthorized(res: ServerResponse, auth: AuthConfig, req: IncomingMessage, options: { port: number; host: string }): void {
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (auth.type === "oauth") {
@@ -47,37 +41,9 @@ function writeUnauthorized(res: ServerResponse, auth: AuthConfig, req: IncomingM
     .end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32001, message: "Unauthorized" }, id: null }));
 }
 
-const LOOPBACK_HOSTS = ["localhost", "127.0.0.1", "[::1]"];
-
-function validateRequestHeaders(
-  req: IncomingMessage,
-  res: ServerResponse,
-  options: { port: number; host: string; allowedHosts?: string[]; allowedOrigins?: string[] }
-): boolean {
-  const isLoopback = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(options.host.toLowerCase());
-  const allowedHosts =
-    options.allowedHosts ?? (isLoopback ? LOOPBACK_HOSTS.flatMap((host) => [host, `${host}:${options.port}`]) : []);
-  const allowedOrigins =
-    options.allowedOrigins ??
-    (isLoopback ? LOOPBACK_HOSTS.flatMap((host) => [`http://${host}`, `http://${host}:${options.port}`]) : []);
-  const includes = (values: string[], value?: string) =>
-    value !== undefined && values.some((allowed) => allowed.toLowerCase() === value.toLowerCase());
-  const origin = req.headers.origin;
-  if (
-    (allowedHosts.length > 0 && !includes(allowedHosts, req.headers.host)) ||
-    (allowedOrigins.length > 0 && origin !== undefined && !includes(allowedOrigins, origin))
-  ) {
-    res.writeHead(403, { "content-type": "application/json" }).end(
-      JSON.stringify({ jsonrpc: "2.0", error: { code: -32000, message: "Forbidden" }, id: null })
-    );
-    return false;
-  }
-  return true;
-}
-
 export async function startHttp(
   nativeServer: OfficialMcpServer,
-  options: { port: number; host: string; auth?: AuthConfig; allowedHosts?: string[]; allowedOrigins?: string[]; silent?: boolean }
+  options: HttpSecurityOptions & { auth?: AuthConfig; silent?: boolean }
 ): Promise<HttpHandle> {
   const { StreamableHTTPServerTransport } = await import("@modelcontextprotocol/sdk/server/streamableHttp.js");
   const http = await import("node:http");
