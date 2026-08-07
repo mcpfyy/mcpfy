@@ -1,14 +1,27 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NodeOAuthClientProvider } from "../src/auth/node-oauth-provider.js";
+
+const { spawnMock, childOnceMock, childUnrefMock } = vi.hoisted(() => ({
+  spawnMock: vi.fn(),
+  childOnceMock: vi.fn(),
+  childUnrefMock: vi.fn(),
+}));
+
+vi.mock("node:child_process", () => ({
+  spawn: spawnMock.mockReturnValue({ once: childOnceMock, unref: childUnrefMock }),
+}));
 
 describe("NodeOAuthClientProvider", () => {
   let dataDir: string;
 
   beforeEach(() => {
     dataDir = mkdtempSync(join(tmpdir(), "mcpfy-oauth-test-"));
+    spawnMock.mockClear();
+    childOnceMock.mockClear();
+    childUnrefMock.mockClear();
   });
 
   afterEach(() => {
@@ -42,6 +55,24 @@ describe("NodeOAuthClientProvider", () => {
     const first = await NodeOAuthClientProvider.create({ serverUrl: "https://mcp.example.com", dataDir });
     const second = await NodeOAuthClientProvider.create({ serverUrl: "https://mcp.example.com", dataDir });
     expect(second.redirectUrl).toBe(first.redirectUrl);
+  });
+
+  it("opens authorization URLs as literal process arguments without a shell", async () => {
+    const provider = await NodeOAuthClientProvider.create({ serverUrl: "https://mcp.example.com", dataDir });
+    const authorizationUrl = new URL("https://fake-auth.example.com/authorize?value=$(touch%20/tmp/pwned)");
+
+    await provider.redirectToAuthorization(authorizationUrl);
+    const codePromise = provider.getAuthorizationCode();
+    await fetch(`${provider.redirectUrl}?code=real-auth-code`);
+    await codePromise;
+
+    expect(spawnMock).toHaveBeenCalledOnce();
+    const [command, args, options] = spawnMock.mock.calls[0];
+    expect(command).not.toContain(authorizationUrl.toString());
+    expect(args).toContain(authorizationUrl.toString());
+    expect(options).toMatchObject({ shell: false });
+    expect(childOnceMock).toHaveBeenCalledWith("error", expect.any(Function));
+    expect(childUnrefMock).toHaveBeenCalledOnce();
   });
 
   it("resolves getAuthorizationCode() when the loopback server receives a real callback request", async () => {

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { exec } from "node:child_process";
+import { spawn } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -67,8 +67,11 @@ async function scanForFreePort([start, end]: [number, number]): Promise<number> 
 /** Prints the URL (the reliable fallback) and best-effort tries to open the OS browser too. */
 function openUrl(url: string): void {
   console.log(`\nOpen this URL to authorize:\n  ${url}\n`);
-  const cmd = process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open";
-  exec(`${cmd} "${url}"`, () => {});
+  const command = process.platform === "darwin" ? "open" : process.platform === "win32" ? "rundll32.exe" : "xdg-open";
+  const args = process.platform === "win32" ? ["url.dll,FileProtocolHandler", url] : [url];
+  const child = spawn(command, args, { detached: true, stdio: "ignore", shell: false });
+  child.once("error", () => {});
+  child.unref();
 }
 
 /**
