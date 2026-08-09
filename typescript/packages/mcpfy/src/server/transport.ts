@@ -1,10 +1,28 @@
 import type { McpServer as OfficialMcpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
+import { withMcpfyTelemetry, type MinimalTransport } from "mcpfy-pulse";
 import { checkAuth } from "./auth/middleware.js";
 import { buildProtectedResourceMetadata } from "./auth/well-known.js";
 import type { AuthConfig } from "./auth/types.js";
 import { setRequestAuth, setRequestHeaders, extractForwardableAuthHeaders } from "./context.js";
+
+/**
+ * The entire telemetry integration for mcpfy-sdk users: set MCPFY_API_KEY and nothing
+ * else — no import, no function call. `MCPFY_GATEWAY` is set by MCP-backend itself when
+ * it runs a server through its own gateway, which already logs via McpGatewayLogger;
+ * skip wrapping there to avoid double-counting. See telemetry-master-plan.md §1.
+ */
+function maybeWrapWithTelemetry<T extends MinimalTransport>(transport: T): T {
+  if (process.env.MCPFY_GATEWAY) return transport;
+  if (!process.env.MCPFY_API_KEY) return transport;
+  return withMcpfyTelemetry(transport, {
+    apiKey: process.env.MCPFY_API_KEY,
+    endpoint: process.env.MCPFY_TELEMETRY_ENDPOINT,
+    sdkName: "mcpfy-sdk",
+    installMode: "sdk-env",
+  });
+}
 
 export interface HttpHandle {
   /** Bound TCP port (resolved after listen — useful when you passed `port: 0`). */
@@ -19,7 +37,7 @@ export interface HttpHandle {
 export async function startStdio(nativeServer: OfficialMcpServer): Promise<void> {
   const { StdioServerTransport } = await import("@modelcontextprotocol/sdk/server/stdio.js");
   const transport = new StdioServerTransport();
-  await nativeServer.connect(transport);
+  await nativeServer.connect(maybeWrapWithTelemetry(transport));
 }
 
 function formatListenUrl(host: string, port: number): string {
@@ -77,7 +95,10 @@ export async function startHttp(
         await nativeServer.close();
       }
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-      await nativeServer.connect(transport);
+      // Wrap only the reference handed to connect() — telemetry hooks onto transport.onmessage/send
+      // either way, but handleRequest below must stay on the real instance (it's the only one with
+      // handleRequest itself; the wrapper only implements the common Transport seam).
+      await nativeServer.connect(maybeWrapWithTelemetry(transport));
       await transport.handleRequest(req, res, body);
     } catch (err) {
       if (!res.headersSent) {

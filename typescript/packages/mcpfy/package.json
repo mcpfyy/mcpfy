@@ -1,7 +1,7 @@
 {
   "name": "mcpfy-sdk",
   "type": "module",
-  "version": "0.2.1",
+  "version": "0.2.3",
   "description": "Minimal TypeScript SDK for building and consuming MCP tools, prompts, resources, and UI widgets (MCP-UI, MCP Apps, Apps SDK).",
   "author": "mcpfy",
   "license": "MIT",
@@ -81,7 +81,8 @@
     "@mcp-ui/server": "^6.1.0",
     "@modelcontextprotocol/ext-apps": "^1.7.5",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "jose": "^6.1.3"
+    "jose": "^6.1.3",
+    "mcpfy-pulse": "workspace:^"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

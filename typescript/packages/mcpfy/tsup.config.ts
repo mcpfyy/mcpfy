@@ -1,6 +1,13 @@
 import { defineConfig } from "tsup";
 
-const external = ["@modelcontextprotocol/sdk", "@modelcontextprotocol/ext-apps", "@mcp-ui/server", "zod", "jose"];
+const external = [
+  "@modelcontextprotocol/sdk",
+  "@modelcontextprotocol/ext-apps",
+  "@mcp-ui/server",
+  "zod",
+  "jose",
+  "mcpfy-pulse",
+];
 
 export default defineConfig([
   {
