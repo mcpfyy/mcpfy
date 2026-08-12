@@ -1,4 +1,4 @@
-import type { TelemetryEvent } from "../types.js";
+import type { DeclaredToolMeta, TelemetryEvent } from "../types.js";
 
 interface PendingEntry {
   method: string;
@@ -14,6 +14,33 @@ function byteLength(value: unknown): number {
   } catch {
     return 0;
   }
+}
+
+/**
+ * Reduces a `tools/list` response's `result.tools` array to non-content metadata —
+ * whether/how-long each description is, and how many of its params are individually
+ * documented. Never reads the description text or schema into the event itself.
+ */
+function extractDeclaredTools(tools: unknown): DeclaredToolMeta[] | undefined {
+  if (!Array.isArray(tools)) return undefined;
+  const declared: DeclaredToolMeta[] = [];
+  for (const tool of tools) {
+    if (!tool || typeof tool.name !== "string") continue;
+    const description = typeof tool.description === "string" ? tool.description : "";
+    const properties = tool.inputSchema?.properties;
+    const paramNames = properties && typeof properties === "object" ? Object.keys(properties) : [];
+    const paramsWithDescriptionCount = paramNames.filter(
+      (p) => typeof properties[p]?.description === "string" && properties[p].description.trim().length > 0,
+    ).length;
+    declared.push({
+      name: tool.name,
+      hasDescription: description.trim().length > 0,
+      descriptionLength: description.length,
+      paramCount: paramNames.length,
+      paramsWithDescriptionCount,
+    });
+  }
+  return declared;
 }
 
 function extractLabel(method: string, params: any): Partial<TelemetryEvent> {
@@ -41,6 +68,9 @@ function extractLabel(method: string, params: any): Partial<TelemetryEvent> {
  * (onmessage = incoming, send = outgoing) and emits one event per completed
  * request. Only method names, byte counts, timing, and outcome are captured —
  * argument values and result content are never read beyond their byte length.
+ * The one exception is `tools/list`, where per-tool description/param *presence
+ * and length* are captured (never the description text or schema) — see
+ * `extractDeclaredTools`.
  *
  * Server-initiated requests/notifications (sampling, elicitation, logging,
  * progress) are intentionally not tracked yet — out of scope for this pass.
@@ -84,6 +114,15 @@ export class MessageClassifier {
     if (pending.method === "initialize" && result?.serverInfo) {
       event.serverName = result.serverInfo.name;
       event.serverVersion = result.serverInfo.version;
+    }
+
+    if (pending.method === "tools/call" && !error && result?.isError === true) {
+      event.resultIsError = true;
+    }
+
+    if (pending.method === "tools/list" && !error) {
+      const declaredTools = extractDeclaredTools(result?.tools);
+      if (declaredTools) event.declaredTools = declaredTools;
     }
 
     return event;

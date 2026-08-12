@@ -2,15 +2,18 @@
 
 Telemetry for MCP servers. Captures method names, payload sizes, durations, and outcomes
 for every JSON-RPC request an MCP server handles — never argument values, never resource
-content. See [`telemetry-master-plan.md`](../../../../telemetry-master-plan.md) for the
-full design.
+content.
 
 There are exactly three ways to use this. Pick the one that matches your situation — none
 of them edit your files for you.
 
+Every mode needs an API key. Create one from your [MCPFY dashboard](https://mcpfy.ai/dashboard/telemetry)
+(**Dashboard → Telemetry**), then set it as `MCPFY_API_KEY` as shown below.
+
 ## 1. You're using `mcpfy-sdk`
 
-Nothing to install or import. Set one environment variable:
+No install step — `mcpfy-pulse` ships bundled with `mcpfy-sdk`. Just set one environment
+variable:
 
 ```bash
 MCPFY_API_KEY=mk_live_xxx node dist/server.js
@@ -19,7 +22,26 @@ MCPFY_API_KEY=mk_live_xxx node dist/server.js
 `mcpfy-sdk` checks for `MCPFY_API_KEY` internally and wraps its own transport
 automatically. Unset the variable and nothing changes — no code path is even touched.
 
-## 2. You have a raw `@modelcontextprotocol/sdk` server (source available)
+## 2. You're not using `mcpfy-sdk` — you built your own server
+
+For anyone who wrote their own server on the raw `@modelcontextprotocol/sdk` (or
+anything else that exposes a `Transport`) and has the source in front of them. Three
+steps:
+
+**1. Install the package:**
+
+```bash
+npm install mcpfy-pulse
+```
+
+**2. Set your API key** (e.g. in your `.env` file):
+
+```bash
+MCPFY_API_KEY=mk_live_xxx
+```
+
+**3. Wrap your transport**, right before you connect it — this works for any transport
+(stdio, HTTP, SSE, ...), not just the stdio example below:
 
 ```ts
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -33,12 +55,14 @@ await server.connect(
 
 `withMcpfyTelemetry` wraps the `Transport`'s `onmessage`/`send` seam — the two points
 every JSON-RPC message passes through regardless of which SDK built the server. If
-`apiKey` is unset, it returns the original transport unchanged.
+`apiKey` is unset, it returns the original transport unchanged, so it's safe to leave
+this in place across environments.
 
 ## 3. You're running someone else's server locally (no source access)
 
-Edit your MCP client's config (`claude_desktop_config.json`, Cursor's `mcp.json`, etc.)
-to route the command through the proxy:
+No install step — `npx` fetches `mcpfy-proxy` automatically the first time it runs. Edit
+your MCP client's config (`claude_desktop_config.json`, Cursor's `mcp.json`, etc.) to
+route the command through the proxy:
 
 ```jsonc
 // before:
@@ -74,10 +98,10 @@ One event per completed request:
 ```
 
 Batched and POSTed every 5 seconds (or every 500 events, whichever comes first) to
-`MCPFY_TELEMETRY_ENDPOINT` (defaults to the MCPFY ingest URL). If the request fails —
-including "the endpoint doesn't exist yet," which is currently true, see the master
-plan §4/§7 — the batch is silently dropped. Telemetry never throws, never retries
-indefinitely, and never delays or blocks the actual MCP traffic it's observing.
+`MCPFY_TELEMETRY_ENDPOINT` (defaults to the MCPFY ingest endpoint). If the request
+fails, the batch is dropped — a `console.warn` is logged, but telemetry never throws,
+never retries indefinitely, and never delays or blocks the actual MCP traffic it's
+observing.
 
 ## Environment variables
 
