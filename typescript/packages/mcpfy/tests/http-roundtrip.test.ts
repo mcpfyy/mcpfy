@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { request } from "node:http";
 import { z } from "zod";
 import { MCPServer } from "../src/server/mcp-server.js";
 import { MCPClient } from "../src/client/mcp-client.js";
@@ -26,6 +27,19 @@ describe("http transport end-to-end", () => {
     const info = await server.listen({ transport: "http", port: 0, silent: true });
     expect(info.url).toMatch(/^http:\/\/localhost:\d+\/mcp$/);
     expect(info.port).toBeGreaterThan(0);
+
+    const rpcBody = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} });
+    const statusFor = (headers: Record<string, string>) =>
+      new Promise<number>((resolve, reject) => {
+        const req = request(info.url!, { method: "POST", headers }, (res) => {
+          res.resume();
+          resolve(res.statusCode ?? 0);
+        });
+        req.on("error", reject).end(rpcBody);
+      });
+    for (const headers of [{ host: "attacker.example" }, { origin: "https://attacker.example" }]) {
+      expect(await statusFor({ "content-type": "application/json", ...headers })).toBe(403);
+    }
 
     client = new MCPClient({ mcpServers: { fixture: { url: info.url! } } });
     const session = await client.createSession("fixture");
