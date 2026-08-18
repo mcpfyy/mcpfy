@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: MCP protocol question
+    url: https://modelcontextprotocol.io
+    about: For questions about the Model Context Protocol itself rather than mcpfy.
+  - name: Official MCP TypeScript SDK
+    url: https://github.com/modelcontextprotocol/typescript-sdk
+    about: mcpfy wraps this SDK — behavior inherited from it belongs there.

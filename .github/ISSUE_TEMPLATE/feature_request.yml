@@ -1,0 +1,41 @@
+name: Feature request
+description: Suggest something mcpfy should be able to do.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check [ROADMAP.md](../blob/main/ROADMAP.md) first — it may already be planned.
+
+        mcpfy is deliberately small and stays close to the official SDK. Proposals that keep
+        the API surface flat, rather than adding a new abstraction, are much likelier to land.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you running into?
+      description: Describe the situation, not the solution. What are you trying to build?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like mcpfy to do?
+      description: If you have an API shape in mind, sketch it.
+      render: typescript
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What have you tried instead?
+      description: >
+        Including whether you can already do this by dropping down to `server.nativeServer`,
+        the escape hatch to the official SDK.
+
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I'd be willing to open a PR for this

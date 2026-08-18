@@ -111,6 +111,33 @@ console.log(await session.callTool("hello"));
 ---
 
 
+## Repository structure
+
+mcpfy is a monorepo. Everything TypeScript lives under [`typescript/`](./typescript), a pnpm
+workspace:
+
+```text
+typescript/
+├── packages/
+│   ├── mcpfy/               # the SDK, published as `mcpfy-sdk`
+│   ├── create-mcpfy-app/    # the `npx create-mcpfy-app` scaffolder
+│   └── mcpfy-pulse/         # opt-in telemetry for MCP servers
+└── examples/
+    ├── hello-world/         # one tool, one prompt, one resource
+    └── widget-hello-world/  # one widget, registered for all three widget protocols
+```
+
+| Package | npm | What it does |
+| --- | --- | --- |
+| [`packages/mcpfy`](./typescript/packages/mcpfy) | [`mcpfy-sdk`](https://www.npmjs.com/package/mcpfy-sdk) | Build and consume MCP servers — tools, prompts, resources, widgets, stdio/HTTP transports, and OAuth. |
+| [`packages/create-mcpfy-app`](./typescript/packages/create-mcpfy-app) | [`create-mcpfy-app`](https://www.npmjs.com/package/create-mcpfy-app) | Scaffolds a working server in one command. |
+| [`packages/mcpfy-pulse`](./typescript/packages/mcpfy-pulse) | [`mcpfy-pulse`](https://www.npmjs.com/package/mcpfy-pulse) | Captures method, size, timing, and outcome metrics. Never sends argument values or resource content. |
+
+`mcpfy-sdk` depends on `mcpfy-pulse`, so build the workspace with `pnpm build` from
+`typescript/` rather than building a single package on its own.
+
+---
+
 ## Documentation
 
 - 📖 **TypeScript SDK Guide**  
