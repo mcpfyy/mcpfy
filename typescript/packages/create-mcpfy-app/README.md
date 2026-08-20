@@ -2,7 +2,12 @@
 
 The fastest way to start building an MCP server with **mcpfy**.
 
-Scaffold a production ready MCP server with a single command. You get a working server with a tool, prompt, and resource already wired up so you can start building immediately instead of setting up boilerplate.
+```bash
+npx create-mcpfy-app@latest
+```
+
+The CLI asks for name, transport, and auth. A **React widget is included by default**.
+Pass `--no-widget` if you only want tools / prompts / resources.
 
 ## Quick Start
 
@@ -16,134 +21,62 @@ or
 npm create mcpfy-app my-server
 ```
 
-If you don't provide a project name, you'll be prompted for one.
-
-You'll also choose the default transport:
-
-```text
-Which transport should this server use?
-  1) stdio  — what most MCP hosts expect (Claude Desktop, Claude Code, Cursor, ...)
-  2) http   — serves over HTTP, useful for remote/hosted servers
-Select 1 or 2 (default: 1):
-```
-
-Once the project is created:
-
 ```bash
 cd my-server
 npm run dev
 ```
 
-Your server starts using the transport you selected.
-
-You can always run either transport later:
+No UI:
 
 ```bash
-npm run dev:stdio
-npm run dev:http
+npx create-mcpfy-app@latest my-server --no-widget
 ```
 
----
+## What's included
 
-## What's Included
+**Default (widget):**
 
 ```text
-my-server/
-├── package.json
-├── tsconfig.json
-├── .gitignore
-├── README.md
 └── src/
-    └── server.ts
+    ├── server.ts                 # tool({ widget: "weather" }) fetches Open-Meteo
+    └── widgets/weather/main.tsx  # React UI; Lookup via callTool
 ```
 
-Inside `server.ts` you'll find:
+`widget: "weather"` is the folder name under `src/widgets/`.
 
-- ✅ One example tool
-- ✅ One example prompt
-- ✅ One example resource
-- ✅ A fully configured MCP server
-- ✅ TypeScript setup with hot reload
+**`--no-widget`:**
 
-Everything is real code. Nothing is hidden behind generators or custom abstractions.
+```text
+└── src/server.ts      # add tool + greeting resource + greet prompt
+```
+
+Widget apps get `mcpfy dev` / `mcpfy build` scripts. `react` and `react-dom` come
+from the template — you still do **not** install Vite.
 
 ---
 
-## CLI Options
-
-Skip the transport prompt:
+## CLI options
 
 ```bash
 npx create-mcpfy-app@latest my-server --stdio
-```
-
-```bash
-npx create-mcpfy-app@latest my-server --http
-```
-
-Set the default HTTP port (baked into `npm run dev` / `dev:http` scripts):
-
-```bash
 npx create-mcpfy-app@latest my-server --http --port 4000
+npx create-mcpfy-app@latest my-server --no-widget
+npx create-mcpfy-app@latest my-server -y --no-install
 ```
 
-or use the explicit form:
+| Flag | Meaning |
+| --- | --- |
+| `--stdio` / `--http` / `--transport` | default transport |
+| `--auth none\|header\|oauth` | listener auth |
+| `--port N` | HTTP port baked into scripts |
+| `--no-widget` | skip React UI (tools/prompts/resources only) |
+| `--widget` | force the widget template (default) |
+| `--tailwind` | Tailwind CSS for the widget (`@import "tailwindcss"` in `styles.css`) |
+| `--pm npm\|pnpm\|yarn` | package manager |
+| `--no-install` | skip `install` |
+| `-y`, `--yes` | skip prompts (stdio, no auth, **with widget**) |
 
-```bash
-npx create-mcpfy-app@latest my-server --transport stdio
-```
-
-Skip dependency installation:
-
-```bash
-npx create-mcpfy-app@latest my-server --no-install
-```
-
-Choose a package manager:
-
-```bash
-npx create-mcpfy-app@latest my-server --pm pnpm
-```
-
-Supported package managers:
-
-- npm
-- pnpm
-- yarn
-
-If no package manager is specified, the CLI automatically uses whichever one launched it.
-
----
-
-## Why create-mcpfy-app?
-
-Most MCP starters generate hundreds of lines of code before you've written your first tool.
-
-`create-mcpfy-app` keeps things intentionally small.
-
-You get a clean project that's easy to read, easy to modify, and easy to delete the example code from.
-
-The generated server is just normal mcpfy code, so everything you learn transfers directly into your own application.
-
-No magic.
-
-No generated framework.
-
-No unnecessary dependencies.
-
-Just a working MCP server you can start building on.
-
----
-
-## Next Steps
-
-Open `src/server.ts` and start adding your own:
-
-- Tools
-- Prompts
-- Resources
-
-Run your server, connect it to your favourite MCP client, and you're ready to build.
+If no package manager is specified, the CLI uses whichever one launched it.
 
 ---
 

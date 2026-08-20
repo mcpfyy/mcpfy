@@ -5,6 +5,10 @@ const server = new MCPServer({
   name: "hello-world",
   version: "1.0.0",
   description: "Minimal mcpfy example: a tool, a prompt, and a resource.",
+  // HTTP only. MCP endpoint path; defaults to /mcp (this example: http://localhost:3000/hello)
+  basePath: "/hello",
+  // Shown to MCP clients. Remote URL, data: URI, or a local file path (e.g. "./src/icon.svg" or "file:///abs/path/icon.png")
+  icon: "https://mcpfy.ai/images/mcpfy-fav-icon-min.png",
 });
 
 server.tool(
@@ -26,6 +30,6 @@ server.prompt(
   async ({ name }) => text(`Hello, ${name}!`)
 );
 
-const useHttp = process.argv.includes("--http");
-// Port resolution (HTTP): options.port → --port N → PORT env → 3000
-await server.listen(useHttp ? { transport: "http" } : { transport: "stdio" });
+const transport = process.argv.includes("--http") ? "http" : "stdio";
+// HTTP port: --port N → PORT env → 3000
+await server.listen(transport === "http" ? { transport: "http" } : { transport: "stdio" });

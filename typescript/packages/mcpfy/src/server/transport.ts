@@ -24,6 +24,29 @@ function maybeWrapWithTelemetry<T extends MinimalTransport>(transport: T): T {
   });
 }
 
+export const DEFAULT_MCP_PATH = "/mcp";
+
+/**
+ * HTTP pathname the Streamable HTTP endpoint is served at.
+ * Empty/`undefined` → `/mcp`. Always starts with `/` and has no trailing slash (except `/`).
+ */
+export function normalizeMcpPath(path?: string): string {
+  if (!path || path.trim() === "") return DEFAULT_MCP_PATH;
+  const trimmed = path.trim();
+  const withSlash = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  if (withSlash === "/") return "/";
+  return withSlash.replace(/\/+$/, "") || DEFAULT_MCP_PATH;
+}
+
+function requestPathname(url: string | undefined): string {
+  if (!url) return "/";
+  try {
+    return new URL(url, "http://localhost").pathname;
+  } catch {
+    return url.split("?")[0] || "/";
+  }
+}
+
 export interface HttpHandle {
   /** Bound TCP port (resolved after listen — useful when you passed `port: 0`). */
   port: number;
@@ -40,11 +63,11 @@ export async function startStdio(nativeServer: OfficialMcpServer): Promise<void>
   await nativeServer.connect(maybeWrapWithTelemetry(transport));
 }
 
-function formatListenUrl(host: string, port: number): string {
+function formatListenUrl(host: string, port: number, mcpPath: string): string {
   const displayHost = host === "0.0.0.0" || host === "::" ? "localhost" : host;
   const needsBrackets = displayHost.includes(":") && !displayHost.startsWith("[");
   const hostPart = needsBrackets ? `[${displayHost}]` : displayHost;
-  return `http://${hostPart}:${port}/mcp`;
+  return `http://${hostPart}:${port}${mcpPath}`;
 }
 
 function deriveBaseUrl(req: IncomingMessage, options: { port: number; host: string }): string {
@@ -66,10 +89,11 @@ function writeUnauthorized(res: ServerResponse, auth: AuthConfig, req: IncomingM
 
 export async function startHttp(
   nativeServer: OfficialMcpServer,
-  options: { port: number; host: string; auth?: AuthConfig; silent?: boolean }
+  options: { port: number; host: string; auth?: AuthConfig; silent?: boolean; mcpPath?: string }
 ): Promise<HttpHandle> {
   const { StreamableHTTPServerTransport } = await import("@modelcontextprotocol/sdk/server/streamableHttp.js");
   const http = await import("node:http");
+  const mcpPath = normalizeMcpPath(options.mcpPath);
 
   // Stateless mode: the SDK requires a *fresh* transport per POST (a stateless
   // transport throws if reused — "Stateless transport cannot be reused across
@@ -118,11 +142,11 @@ export async function startHttp(
       const baseUrl = deriveBaseUrl(req, listenState);
       res
         .writeHead(200, { "content-type": "application/json" })
-        .end(JSON.stringify(buildProtectedResourceMetadata(options.auth, baseUrl)));
+        .end(JSON.stringify(buildProtectedResourceMetadata(options.auth, baseUrl, mcpPath)));
       return;
     }
 
-    if (req.url !== "/mcp") {
+    if (requestPathname(req.url) !== mcpPath) {
       res.writeHead(404).end();
       return;
     }
@@ -175,7 +199,7 @@ export async function startHttp(
   const address = httpServer.address() as AddressInfo | null;
   const boundPort = address?.port ?? options.port;
   listenState.port = boundPort;
-  const url = formatListenUrl(options.host, boundPort);
+  const url = formatListenUrl(options.host, boundPort, mcpPath);
 
   if (!options.silent) {
     // eslint-disable-next-line no-console

@@ -9,16 +9,39 @@ import {
   type ResourceDefinition,
   type FlatResourceTemplateDefinition,
 } from "./resources.js";
-import { startStdio, startHttp, type HttpHandle } from "./transport.js";
+import { startStdio, startHttp, type HttpHandle, normalizeMcpPath } from "./transport.js";
+import { resolveServerIcons, type ServerIcon } from "./icon.js";
 import { registerWidget, type UIResourceDefinition, type WidgetCallback } from "./widgets/index.js";
+import { configureWidgetRegistry } from "./widgets/registry.js";
+import { prepareRegisteredWidgets } from "./widgets/prepare.js";
+import { DEFAULT_WIDGETS_DIR } from "./widgets/types.js";
 import type { AuthConfig } from "./auth/types.js";
+import { refreshPrompts, refreshResource, refreshResources, refreshTools } from "./refresh.js";
+import { enableResourceSubscriptions } from "./subscriptions.js";
+import { mountRemote, type RemoteServerConfig } from "./mount-remote.js";
+import type { HttpConnector } from "../client/connectors.js";
+
+export type { ServerIcon } from "./icon.js";
 
 export interface MCPServerConfig {
   name: string;
   version: string;
   description?: string;
+  /**
+   * HTTP pathname for the MCP endpoint. Defaults to `/mcp`.
+   * Example: `basePath: "/weather"` → `http://localhost:3000/weather`.
+   */
+  basePath?: string;
+  /**
+   * Server icon advertised in initialize (MCP `icons`).
+   * A remote URL, a `data:` URI, a local file path (`./icon.png`), or a `file:` URL.
+   * Local files are inlined as `data:` URIs so MCP clients can display them.
+   */
+  icon?: string | ServerIcon;
   /** Require callers to authenticate — see `mcpfy-sdk/server`'s `jwksVerifier`/`oauthAuth0Provider`/etc. HTTP transport only. */
   auth?: AuthConfig;
+  /** Root for `tool({ widget: "name" })` folders. Defaults to `src/widgets`. */
+  widgetsDir?: string;
 }
 
 export interface ListenOptions {
@@ -80,21 +103,27 @@ export class MCPServer {
   public readonly config: MCPServerConfig;
 
   private httpHandle?: HttpHandle;
+  private remotes: HttpConnector[] = [];
 
   constructor(config: MCPServerConfig) {
     this.config = config;
     this.nativeServer = new OfficialMcpServer(
-      { name: config.name, version: config.version, title: config.name },
+      { name: config.name, version: config.version, title: config.name, icons: resolveServerIcons(config.icon) },
       {
         instructions: config.description,
         capabilities: {
           logging: {},
           tools: { listChanged: true },
           prompts: { listChanged: true },
-          resources: { listChanged: true },
+          resources: { subscribe: true, listChanged: true },
         },
       }
     );
+    configureWidgetRegistry(this.nativeServer, {
+      widgetsDir: config.widgetsDir ?? DEFAULT_WIDGETS_DIR,
+      cwd: process.cwd(),
+    });
+    enableResourceSubscriptions(this.nativeServer);
   }
 
   tool<TInput = Record<string, any>, TOutput extends Record<string, unknown> = Record<string, unknown>>(
@@ -123,9 +152,42 @@ export class MCPServer {
     return this;
   }
 
+  /**
+   * @deprecated Pass `widget: "folder-name"` (or `{ dir, protocols, csp }`) on `server.tool()` instead.
+   * HTML-string widgets remain available on this method for one release.
+   */
   widget<TInput = Record<string, any>>(def: UIResourceDefinition<TInput>, cb?: WidgetCallback<TInput>): this {
     registerWidget(this.nativeServer, def, cb);
     return this;
+  }
+
+  /** Tell subscribed clients this resource URI has new content. */
+  async refreshResource(uri: string): Promise<void> {
+    await refreshResource(this.nativeServer, uri);
+  }
+
+  /** Tell clients to list resources again. */
+  refreshResources(): void {
+    refreshResources(this.nativeServer);
+  }
+
+  /** Tell clients to list tools again. */
+  refreshTools(): void {
+    refreshTools(this.nativeServer);
+  }
+
+  /** Tell clients to list prompts again. */
+  refreshPrompts(): void {
+    refreshPrompts(this.nativeServer);
+  }
+
+  /**
+   * Re-expose tools/resources/prompts from other HTTP MCP servers on this one.
+   * Names become `{alias}__{original}` (tools and prompts). Call before or after `listen()`.
+   */
+  async mountRemote(remotes: Record<string, RemoteServerConfig>): Promise<void> {
+    const connected = await mountRemote(this.nativeServer, remotes);
+    this.remotes.push(...connected);
   }
 
   /**
@@ -141,6 +203,11 @@ export class MCPServer {
    * await server.listen({ transport: "http" });
    */
   async listen(options: ListenOptions = {}): Promise<ListenResult> {
+    await prepareRegisteredWidgets(this.nativeServer, {
+      appName: this.config.name,
+      appVersion: this.config.version,
+    });
+
     const transport = options.transport ?? "stdio";
     if (transport === "stdio") {
       await startStdio(this.nativeServer);
@@ -154,6 +221,7 @@ export class MCPServer {
       host,
       auth: this.config.auth,
       silent: options.silent,
+      mcpPath: normalizeMcpPath(this.config.basePath),
     });
 
     return {
@@ -172,6 +240,8 @@ export class MCPServer {
   async close(): Promise<void> {
     await this.httpHandle?.close();
     this.httpHandle = undefined;
+    await Promise.all(this.remotes.map((remote) => remote.close()));
+    this.remotes = [];
     await this.nativeServer.close();
   }
 }

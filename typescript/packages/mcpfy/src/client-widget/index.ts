@@ -29,13 +29,23 @@ export interface ConnectResult {
   app?: App;
 }
 
+export interface ConnectOptions {
+  handshakeTimeoutMs?: number;
+  setupApp?: (app: App) => void;
+}
+
 /**
  * Best-effort unified connect: returns immediately for Apps SDK (nothing to
  * connect — `window.openai` is already there), attempts the MCP Apps handshake
  * with a short timeout for iframe hosts, and falls back to `"mcp-ui"` (which has
  * no handshake — use the `post*` action helpers directly) if that times out.
  */
-export async function connect(appInfo: { name: string; version: string }, handshakeTimeoutMs = 1500): Promise<ConnectResult> {
+export async function connect(
+  appInfo: { name: string; version: string },
+  options: number | ConnectOptions = 1500
+): Promise<ConnectResult> {
+  const handshakeTimeoutMs = typeof options === "number" ? options : (options.handshakeTimeoutMs ?? 1500);
+  const setupApp = typeof options === "object" ? options.setupApp : undefined;
   const openai = getOpenAiGlobal();
   if (openai) return { protocol: "apps-sdk", openai };
 
@@ -45,7 +55,7 @@ export async function connect(appInfo: { name: string; version: string }, handsh
 
   try {
     const app = await Promise.race([
-      connectMcpApps(appInfo),
+      connectMcpApps(appInfo, undefined, { setup: setupApp }),
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), handshakeTimeoutMs)),
     ]);
     return { protocol: "mcp-apps", app };

@@ -1,10 +1,7 @@
 # Contributing to mcpfy
 
-Thanks for considering a contribution. mcpfy is intentionally small — please keep that in mind
-when proposing changes: prefer the minimal fix over a new abstraction, and prefer opening an
-issue to discuss scope before large PRs, especially anything that would pull mcpfy toward
-mcpfy's larger feature set (Apps/widgets, OAuth, telemetry, etc.) — those are deliberately out
-of scope for now.
+Thanks for considering a contribution. mcpfy is intentionally small — prefer the minimal fix
+over a new abstraction, and open an issue before large PRs.
 
 ## Getting set up
 
@@ -20,8 +17,8 @@ Requires Node.js 20.19+ (or 22.12+) and pnpm 10+.
 
 ## Project layout
 
-See the root [README.md](./README.md#repository-structure) for the repo layout, and
-[`typescript/README.md`](./typescript/README.md) for TypeScript-specific development commands.
+See the root [README.md](./README.md) and [`typescript/README.md`](./typescript/README.md)
+for layout and development commands.
 
 ## Making changes
 
@@ -41,8 +38,8 @@ pnpm build   # from typescript/
 pnpm test
 ```
 
-Both must pass. Update the relevant package's README if you changed its public API, and update
-`examples/hello-world` if the change affects how a basic server is written.
+Both must pass. Update the relevant package README if you changed public API. Update
+`examples/hello-world` and/or `examples/widget-weather` when the corresponding scaffold changes.
 
 ## Reporting bugs / requesting features
 

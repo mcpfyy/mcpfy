@@ -22,6 +22,6 @@ export type AuthConfig =
       verifyToken: (token: string) => Promise<AuthInfo | null>;
       /** Authorization server issuer URL(s) advertised in `.well-known/oauth-protected-resource`. */
       authorizationServers: string[];
-      /** Override the resource identifier advertised in the metadata document; defaults to this server's own `/mcp` URL. */
+      /** Override the resource identifier advertised in the metadata document; defaults to this server's MCP path URL. */
       resource?: string;
     };
