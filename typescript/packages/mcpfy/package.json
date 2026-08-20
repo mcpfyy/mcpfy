@@ -35,28 +35,32 @@
   "exports": {
     ".": {
       "types": "./dist/src/index.d.ts",
-      "import": "./dist/src/index.js",
-      "require": "./dist/src/index.cjs"
+      "import": "./dist/src/index.js"
     },
     "./server": {
       "types": "./dist/src/server/index.d.ts",
-      "import": "./dist/src/server/index.js",
-      "require": "./dist/src/server/index.cjs"
+      "import": "./dist/src/server/index.js"
     },
     "./client": {
       "types": "./dist/src/client/index.d.ts",
-      "import": "./dist/src/client/index.js",
-      "require": "./dist/src/client/index.cjs"
+      "import": "./dist/src/client/index.js"
     },
     "./widget-bridge": {
       "types": "./dist/src/client-widget/index.d.ts",
       "import": "./dist/src/client-widget/index.js"
     },
+    "./widget": {
+      "types": "./dist/src/widget-react/index.d.ts",
+      "import": "./dist/src/widget-react/index.js"
+    },
+    "./package.json": "./package.json",
     "./auth": {
       "types": "./dist/src/auth/index.d.ts",
-      "import": "./dist/src/auth/index.js",
-      "require": "./dist/src/auth/index.cjs"
+      "import": "./dist/src/auth/index.js"
     }
+  },
+  "bin": {
+    "mcpfy": "./dist/src/cli/mcpfy.js"
   },
   "main": "./dist/src/index.js",
   "module": "./dist/src/index.js",
@@ -75,17 +79,31 @@
     "test:watch": "vitest"
   },
   "peerDependencies": {
-    "zod": "^3.25.0 || ^4.0.0"
+    "zod": "^3.25.0 || ^4.0.0",
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true },
+    "react-dom": { "optional": true }
   },
   "dependencies": {
     "@mcp-ui/server": "^6.1.0",
     "@modelcontextprotocol/ext-apps": "^1.7.5",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@vitejs/plugin-react": "^4.7.0",
+    "@tailwindcss/vite": "^4.1.11",
     "jose": "^6.1.3",
-    "mcpfy-pulse": "workspace:^"
+    "mcpfy-pulse": "workspace:^",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "tailwindcss": "^4.1.11",
+    "vite": "^6.3.5"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
     "rimraf": "^6.0.1",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",

@@ -43,4 +43,34 @@ describe("http transport end-to-end", () => {
       text: "# Hello from mcpfy!",
     });
   });
+
+  it("serves MCP at a custom basePath and advertises icon", async () => {
+    server = new MCPServer({
+      name: "http-fixture",
+      version: "1.0.0",
+      basePath: "/weather",
+      icon: "https://example.com/icon.png",
+    });
+    server.tool(
+      { name: "add", schema: z.object({ a: z.number(), b: z.number() }), outputSchema: z.object({ sum: z.number() }) },
+      async ({ a, b }) => object({ sum: a + b })
+    );
+
+    expect(server.config.icon).toBe("https://example.com/icon.png");
+
+    const info = await server.listen({ transport: "http", port: 0, silent: true });
+    expect(info.url).toMatch(/^http:\/\/localhost:\d+\/weather$/);
+
+    const missed = await fetch(`http://localhost:${info.port}/mcp`, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }),
+    });
+    expect(missed.status).toBe(404);
+
+    client = new MCPClient({ mcpServers: { fixture: { url: info.url! } } });
+    const session = await client.createSession("fixture");
+    const tools = await session.listTools();
+    expect(tools.map((t) => t.name)).toEqual(["add"]);
+  });
 });

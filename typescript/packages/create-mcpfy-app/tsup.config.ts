@@ -11,4 +11,5 @@ export default defineConfig({
   clean: false,
   dts: false,
   shims: true,
+  external: ["@clack/prompts", "picocolors", "gradient-string"],
 });

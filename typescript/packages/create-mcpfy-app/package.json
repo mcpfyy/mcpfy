@@ -2,7 +2,7 @@
   "name": "create-mcpfy-app",
   "type": "module",
   "version": "0.2.2",
-  "description": "Scaffold a working MCP server (tools, prompts, resources) with one command.",
+  "description": "Scaffold a working MCP server (tools, prompts, resources, optional React widgets) with one command.",
   "author": "mcpfy",
   "license": "MIT",
   "homepage": "https://github.com/mcpfyy/mcpfy#readme",
@@ -32,11 +32,17 @@
     "dev": "tsx src/bin.ts"
   },
   "devDependencies": {
+    "@types/gradient-string": "^1.1.6",
     "@types/node": "^22.10.2",
     "rimraf": "^6.0.1",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.11.0",
+    "gradient-string": "^2.0.2",
+    "picocolors": "^1.1.1"
   },
   "publishConfig": {
     "access": "public"

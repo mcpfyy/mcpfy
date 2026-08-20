@@ -7,6 +7,11 @@ const external = [
   "zod",
   "jose",
   "mcpfy-pulse",
+  "vite",
+  "@vitejs/plugin-react",
+  "react",
+  "react-dom",
+  "react-dom/client",
 ];
 
 export default defineConfig([
@@ -17,7 +22,7 @@ export default defineConfig([
       "src/client/index": "src/client/index.ts",
       "src/auth/index": "src/auth/index.ts",
     },
-    format: ["cjs", "esm"],
+    format: ["esm"],
     outDir: "dist",
     platform: "node",
     target: "es2022",
@@ -27,10 +32,24 @@ export default defineConfig([
     dts: false,
     external,
   },
-  // Widget bridge: runs inside a widget's <iframe>, not Node — separate browser-target build.
+  {
+    entry: {
+      "src/cli/mcpfy": "src/cli/mcpfy.ts",
+    },
+    format: ["esm"],
+    outDir: "dist",
+    platform: "node",
+    target: "es2022",
+    splitting: false,
+    sourcemap: true,
+    clean: false,
+    dts: false,
+    external,
+  },
   {
     entry: {
       "src/client-widget/index": "src/client-widget/index.ts",
+      "src/widget-react/index": "src/widget-react/index.ts",
     },
     format: ["esm"],
     outDir: "dist",
@@ -41,5 +60,8 @@ export default defineConfig([
     clean: false,
     dts: false,
     external,
+    esbuildOptions(options) {
+      options.jsx = "automatic";
+    },
   },
 ]);

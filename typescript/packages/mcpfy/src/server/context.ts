@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { McpServer as OfficialMcpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type {
   CreateMessageRequest,
@@ -20,6 +21,11 @@ export interface SampleOptions {
 
 export type LogLevel = "debug" | "info" | "notice" | "warning" | "error";
 
+export interface AskUrlOptions {
+  /** Correlation id the client sends back; generated if omitted. */
+  id?: string;
+}
+
 /** Headers MCP-backend (and exports) forward from the inbound MCP HTTP request to upstream API calls. */
 export const FORWARDABLE_AUTH_HEADER_NAMES = [
   "authorization",
@@ -35,17 +41,31 @@ export interface ToolContext {
     options?: SampleOptions
   ): Promise<CreateMessageResult>;
 
-  /** Ask the connected client to collect structured input from the end user. */
+  /** Ask the connected client to collect structured input from the end user (form). */
   elicit<T extends z.ZodObject<any>>(
     message: string,
     schema: T
   ): Promise<ElicitResult & { data?: z.infer<T> }>;
+
+  /**
+   * Ask the client to open an external URL (OAuth, checkout, etc.) then continue.
+   * Does not return secrets from that page — verify completion on your backend.
+   */
+  askUrl(message: string, url: string, options?: AskUrlOptions): Promise<ElicitResult>;
+
+  /** Tell the client a URL elicitation started with `askUrl` has finished on your side. */
+  finishAskUrl(id: string): Promise<void>;
 
   /** Report progress on a long-running call, if the client requested it. */
   reportProgress(progress: number, total?: number, message?: string): Promise<void>;
 
   /** Send a log message to the client. */
   log(level: LogLevel, message: string): Promise<void>;
+
+  /**
+   * Aborts when the MCP client cancels this call. Pass to `fetch(url, { signal: ctx.abort })`.
+   */
+  abort: AbortSignal;
 
   /** The transport session this call is associated with, if any. */
   sessionId?: string;
@@ -118,6 +138,8 @@ export function buildToolContext(nativeServer: OfficialMcpServer, extra: Extra):
   const progressToken = extra._meta?.progressToken;
 
   return {
+    abort: extra.signal,
+
     async sample(
       promptOrParams: string | CreateMessageRequest["params"],
       options?: SampleOptions
@@ -146,6 +168,20 @@ export function buildToolContext(nativeServer: OfficialMcpServer, extra: Extra):
         ...result,
         data: result.action === "accept" ? (result.content as z.infer<T>) : undefined,
       };
+    },
+
+    async askUrl(message, url, options) {
+      const elicitationId = options?.id ?? randomUUID();
+      return nativeServer.server.elicitInput({
+        mode: "url",
+        message,
+        url,
+        elicitationId,
+      });
+    },
+
+    async finishAskUrl(id) {
+      await nativeServer.server.createElicitationCompletionNotifier(id)();
     },
 
     async reportProgress(progress: number, total?: number, message?: string): Promise<void> {
