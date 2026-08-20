@@ -1,7 +1,7 @@
 {
   "name": "mcpfy-pulse",
   "type": "module",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Telemetry for MCP servers: wrap any Transport, or proxy any command over stdio, to capture method/size/duration/outcome metrics for the MCPFY dashboard. Never sends argument values or resource content.",
   "author": "mcpfy",
   "license": "MIT",

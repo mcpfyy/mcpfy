@@ -3,10 +3,15 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const src = join(here, "..", "template");
-const dest = join(here, "..", "dist", "template");
+const root = join(here, "..");
 
-if (existsSync(dest)) rmSync(dest, { recursive: true, force: true });
-cpSync(src, dest, { recursive: true });
-
-console.log(`Copied template/ -> ${dest}`);
+for (const name of ["template", "template-widget"]) {
+  const src = join(root, name);
+  const dest = join(root, "dist", name);
+  if (!existsSync(src)) {
+    throw new Error(`Missing ${src}`);
+  }
+  if (existsSync(dest)) rmSync(dest, { recursive: true, force: true });
+  cpSync(src, dest, { recursive: true });
+  console.log(`Copied ${name}/ -> ${dest}`);
+}

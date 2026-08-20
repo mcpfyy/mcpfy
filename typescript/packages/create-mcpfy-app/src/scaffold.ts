@@ -1,12 +1,19 @@
 import { spawn } from "node:child_process";
-import { cpSync, existsSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-// Built layout: dist/bin.js + dist/template/ (copied by scripts/copy-templates.mjs).
-// Dev layout (tsx src/bin.ts, no build step): src/scaffold.ts + ../template/ at the package root.
-const templateDir = existsSync(join(here, "template")) ? join(here, "template") : join(here, "..", "template");
+const packageRoot = existsSync(join(here, "template")) ? here : join(here, "..");
 
 export type Transport = "stdio" | "http";
 export type Auth = "none" | "header" | "oauth";
@@ -18,6 +25,10 @@ export interface ScaffoldOptions {
   auth: Auth;
   /** Default HTTP listen port baked into the generated server (ignored for stdio). */
   port?: number;
+  /** Scaffold a React widget folder + `server.tool({ widget })` example. */
+  widget?: boolean;
+  /** Add Tailwind CSS for the widget (requires widget). */
+  tailwind?: boolean;
   install: boolean;
   packageManager: string;
 }
@@ -83,17 +94,52 @@ function replacePlaceholders(filePath: string, replacements: Record<string, stri
   if (changed) writeFileSync(filePath, content, "utf-8");
 }
 
+function templateDirFor(widget: boolean): string {
+  const name = widget ? "template-widget" : "template";
+  const dir = join(packageRoot, name);
+  if (!existsSync(dir)) {
+    throw new Error(`Scaffold template missing: ${dir}`);
+  }
+  return dir;
+}
+
+/**
+ * Local checkouts of this monorepo should depend on the sibling mcpfy-sdk (the
+ * published npm copy does not yet ship the `mcpfy` CLI). Published create-mcpfy-app
+ * falls back to the registry version.
+ */
+export function mcpfySdkDependency(): string {
+  const candidates = [
+    join(packageRoot, "..", "mcpfy"),
+    join(packageRoot, "..", "..", "mcpfy"),
+    join(packageRoot, "..", "..", "..", "mcpfy"),
+  ];
+  for (const local of candidates) {
+    const pkgPath = join(local, "package.json");
+    if (!existsSync(pkgPath)) continue;
+    try {
+      const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { name?: string; bin?: Record<string, string> };
+      if (pkg.name === "mcpfy-sdk" && pkg.bin?.mcpfy) {
+        return `file:${local}`;
+      }
+    } catch {
+      // try next
+    }
+  }
+  return "^0.2.3";
+}
+
 export function copyTemplate(
   targetDir: string,
   projectName: string,
   transport: Transport,
   auth: Auth,
-  port = 3000
+  port = 3000,
+  widget = true,
+  tailwind = false
 ): void {
-  cpSync(templateDir, targetDir, { recursive: true });
-  // The template ships a dotless "gitignore" because npm's packlist unconditionally strips any
-  // file literally named ".gitignore" (or ".npmignore") out of a published tarball, treating it
-  // as packing config rather than shippable content — so we rename it back on the way out.
+  mkdirSync(targetDir, { recursive: true });
+  cpSync(templateDirFor(widget), targetDir, { recursive: true });
   const gitignorePath = join(targetDir, "gitignore");
   if (existsSync(gitignorePath)) {
     renameSync(gitignorePath, join(targetDir, ".gitignore"));
@@ -102,14 +148,42 @@ export function copyTemplate(
     "{{PROJECT_NAME}}": projectName,
     "{{DEFAULT_TRANSPORT}}": transport,
     "{{DEFAULT_PORT}}": String(port),
-    // When default transport is http, `npm run dev` should also bind the chosen port.
     "{{DEV_PORT_ARGS}}": transport === "http" ? ` --port ${port}` : "",
+    "{{MCPFY_DEV_ARGS}}": transport === "http" ? ` -- --http --port ${port}` : "",
     "{{AUTH_IMPORT}}": AUTH_IMPORTS[auth],
     "{{AUTH_CONFIG}}": AUTH_CONFIGS[auth],
+    "{{MCPFY_SDK}}": mcpfySdkDependency(),
   };
   for (const file of ["package.json", "README.md", "src/server.ts"]) {
     replacePlaceholders(join(targetDir, file), replacements);
   }
+  if (widget) applyWidgetStyle(targetDir, tailwind);
+}
+
+function applyWidgetStyle(targetDir: string, tailwind: boolean): void {
+  const dir = join(targetDir, "src/widgets/weather");
+  const inline = join(dir, "main.tsx");
+  const tw = join(dir, "main.tailwind.tsx");
+  const css = join(dir, "styles.css");
+
+  if (tailwind) {
+    if (existsSync(inline)) unlinkSync(inline);
+    if (existsSync(tw)) renameSync(tw, inline);
+    const pkgPath = join(targetDir, "package.json");
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as {
+      devDependencies?: Record<string, string>;
+    };
+    pkg.devDependencies = {
+      ...pkg.devDependencies,
+      "@tailwindcss/vite": "^4.1.11",
+      tailwindcss: "^4.1.11",
+    };
+    writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
+    return;
+  }
+
+  if (existsSync(tw)) unlinkSync(tw);
+  if (existsSync(css)) unlinkSync(css);
 }
 
 export function runInstall(packageManager: string, cwd: string): Promise<void> {
@@ -130,7 +204,9 @@ export async function scaffold(options: ScaffoldOptions): Promise<void> {
     options.projectName,
     options.transport,
     options.auth,
-    options.port ?? 3000
+    options.port ?? 3000,
+    options.widget ?? true,
+    Boolean(options.widget && options.tailwind)
   );
   if (options.install) {
     await runInstall(options.packageManager, options.targetDir);

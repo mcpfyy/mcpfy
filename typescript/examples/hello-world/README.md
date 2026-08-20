@@ -1,50 +1,77 @@
-# mcpfy hello-world example
+# hello-world
 
-A minimal MCP server built with `mcpfy`, exposing one tool (`add`), one resource
-(`app://greeting`), and one prompt (`greet`). Demonstrates both transports mcpfy supports.
+A tools-only MCP server with [mcpfy-sdk](https://www.npmjs.com/package/mcpfy-sdk). Same shape as `create-mcpfy-app --no-widget`.
+
+| Primitive | Name | Notes |
+| --- | --- | --- |
+| Tool | `add` | `schema` `{ a, b }` → `outputSchema` `{ sum }` |
+| Resource | `app://greeting` | Markdown via `server.resource()` — data, not UI |
+| Prompt | `greet` | Template via `server.prompt()` |
+
+```ts
+server.tool(
+  {
+    name: "add",
+    description: "Add two numbers",
+    schema: z.object({ a: z.number(), b: z.number() }),
+    outputSchema: z.object({ sum: z.number() }),
+  },
+  async ({ a, b }) => object({ sum: a + b })
+);
+```
 
 ## Run
 
+From the `typescript/` workspace root:
+
 ```bash
-pnpm install    # from the typescript/ workspace root
-pnpm --filter @mcpfy-examples/hello-world start:stdio   # stdio transport (default)
-pnpm --filter @mcpfy-examples/hello-world start:http    # HTTP transport on :3000
+pnpm install
+pnpm --filter @mcpfy-examples/hello-world start:stdio   # default
+pnpm --filter @mcpfy-examples/hello-world start:http    # http://localhost:3000/hello
 ```
 
-## Connect a client
+HTTP port: `--port N` or `PORT` (default 3000).
 
-### stdio
+## MCP host
+
+```json
+{
+  "mcpServers": {
+    "hello-world": {
+      "command": "npx",
+      "args": ["tsx", "/absolute/path/to/examples/hello-world/src/server.ts", "--stdio"]
+    }
+  }
+}
+```
+
+## MCPClient
+
+stdio (spawns the server):
 
 ```ts
 import { MCPClient } from "mcpfy-sdk/client";
 
 const client = new MCPClient({
   mcpServers: {
-    hello: { command: "tsx", args: ["src/server.ts"] },
+    hello: { command: "npx", args: ["tsx", "src/server.ts", "--stdio"] },
   },
 });
 
 const session = await client.createSession("hello");
-console.log(await session.listTools());
-console.log(await session.callTool("add", { a: 2, b: 3 }));
+console.log(await session.callTool("add", { a: 2, b: 3 })); // structuredContent: { sum: 5 }
 await client.closeAllSessions();
 ```
 
-### HTTP
-
-Start the server with `pnpm start:http` in one terminal, then:
+HTTP — start `start:http` first, then:
 
 ```ts
-import { MCPClient } from "mcpfy-sdk/client";
-
 const client = new MCPClient({
-  mcpServers: {
-    hello: { url: "http://localhost:3000/mcp" },
-  },
+  mcpServers: { hello: { url: "http://localhost:3000/hello" } },
 });
-
-const session = await client.createSession("hello");
-console.log(await session.readResource("app://greeting"));
-console.log(await session.getPrompt("greet", { name: "World" }));
-await client.closeAllSessions();
 ```
+
+## Next steps
+
+- For a React UI, see [`../widget-weather`](../widget-weather) or `create-mcpfy-app` (widget is the default).
+- Full API: [mcpfy-sdk](https://www.npmjs.com/package/mcpfy-sdk).

@@ -12,7 +12,7 @@
     "start": "node --env-file-if-exists=.env dist/server.js"
   },
   "dependencies": {
-    "mcpfy-sdk": "^0.2.0",
+    "mcpfy-sdk": "{{MCPFY_SDK}}",
     "zod": "^3.25.0"
   },
   "devDependencies": {

@@ -11,5 +11,5 @@
     "noEmit": true
   },
   "include": ["src"],
-  "exclude": ["dist", "template", "node_modules"]
+  "exclude": ["dist", "template", "template-widget", "node_modules"]
 }

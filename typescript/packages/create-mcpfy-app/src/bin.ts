@@ -1,7 +1,9 @@
 #!/usr/bin/env node
-import { createInterface } from "node:readline/promises";
+import * as p from "@clack/prompts";
+import color from "picocolors";
+import gradient from "gradient-string";
 import { basename, relative, resolve } from "node:path";
-import { detectPackageManager, scaffold, toPackageName, type Auth, type Transport } from "./scaffold.js";
+import { detectPackageManager, runInstall, scaffold, toPackageName, type Auth, type Transport } from "./scaffold.js";
 
 interface ParsedArgs {
   name?: string;
@@ -10,7 +12,22 @@ interface ParsedArgs {
   transport?: Transport;
   auth?: Auth;
   port?: number;
+  widget?: boolean;
+  tailwind?: boolean;
+  help: boolean;
+  yes: boolean;
 }
+
+const BANNER = `
+ ███╗   ███╗ ██████╗██████╗ ███████╗██╗   ██╗
+ ████╗ ████║██╔════╝██╔══██╗██╔════╝╚██╗ ██╔╝
+ ██╔████╔██║██║     ██████╔╝█████╗   ╚████╔╝
+ ██║╚██╔╝██║██║     ██╔═══╝ ██╔══╝    ╚██╔╝
+ ██║ ╚═╝ ██║╚██████╗██║     ██║        ██║
+ ╚═╝     ╚═╝ ╚═════╝╚═╝     ╚═╝        ╚═╝
+`.trimEnd();
+
+const brand = gradient(["#e5e5e5", "#737373", "#e5e5e5"]);
 
 function parsePortValue(value: string | undefined, flag: string): number {
   const n = Number(value);
@@ -21,30 +38,50 @@ function parsePortValue(value: string | undefined, flag: string): number {
   return n;
 }
 
+function printHelp(): void {
+  console.log(`
+${color.bold("create-mcpfy-app")} — scaffold an MCP server with mcpfy
+
+${color.dim("Usage:")}
+  npx create-mcpfy-app@latest [name] [options]
+
+${color.dim("Options:")}
+  --stdio, --http, --transport <stdio|http>
+  --auth <none|header|oauth>
+  --port <n>              HTTP listen port (default 3000)
+  --no-widget             tools/prompts/resources only (no React UI)
+  --tailwind              widget UI styled with Tailwind CSS
+  --pm <npm|pnpm|yarn>
+  --no-install
+  -y, --yes               skip prompts (defaults: stdio, no auth, widget, no Tailwind)
+  -h, --help
+`);
+}
+
 function parseArgs(argv: string[]): ParsedArgs {
-  const args: ParsedArgs = { install: true };
+  const args: ParsedArgs = { install: true, help: false, yes: false };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === "--no-install") {
-      args.install = false;
-    } else if (arg === "--pm") {
-      args.packageManager = argv[++i];
-    } else if (arg === "--transport") {
+    if (arg === "--help" || arg === "-h") args.help = true;
+    else if (arg === "--yes" || arg === "-y") args.yes = true;
+    else if (arg === "--no-install") args.install = false;
+    else if (arg === "--widget") args.widget = true;
+    else if (arg === "--no-widget") args.widget = false;
+    else if (arg === "--tailwind") args.tailwind = true;
+    else if (arg === "--no-tailwind") args.tailwind = false;
+    else if (arg === "--pm") args.packageManager = argv[++i];
+    else if (arg === "--transport") {
       const value = argv[++i];
       if (value !== "stdio" && value !== "http") {
         console.error(`Invalid --transport value "${value}" — expected "stdio" or "http".`);
         process.exit(1);
       }
       args.transport = value;
-    } else if (arg === "--stdio") {
-      args.transport = "stdio";
-    } else if (arg === "--http") {
-      args.transport = "http";
-    } else if (arg === "--port") {
-      args.port = parsePortValue(argv[++i], "--port");
-    } else if (arg.startsWith("--port=")) {
-      args.port = parsePortValue(arg.slice("--port=".length), "--port");
-    } else if (arg === "--auth") {
+    } else if (arg === "--stdio") args.transport = "stdio";
+    else if (arg === "--http") args.transport = "http";
+    else if (arg === "--port") args.port = parsePortValue(argv[++i], "--port");
+    else if (arg.startsWith("--port=")) args.port = parsePortValue(arg.slice("--port=".length), "--port");
+    else if (arg === "--auth") {
       const value = argv[++i];
       if (value !== "none" && value !== "header" && value !== "oauth") {
         console.error(`Invalid --auth value "${value}" — expected "none", "header", or "oauth".`);
@@ -58,123 +95,190 @@ function parseArgs(argv: string[]): ParsedArgs {
   return args;
 }
 
-/**
- * Reads one line per call via the interface's async iterator rather than repeated
- * `rl.question()` calls. `question()` resolves off a one-shot `once('line', ...)` listener,
- * but readline parses *all* buffered stdin into `line` events as soon as it arrives —
- * on piped input, a second line can arrive (and fire, to no listener) before the first
- * question's answer even resolves, silently dropping it. The async iterator uses an
- * internal queue that holds lines until something actually asks for them, so nothing
- * gets lost regardless of how fast the input arrives.
- */
-function createPrompter(): { ask: (question: string) => Promise<string>; close: () => void } {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  const lines = rl[Symbol.asyncIterator]();
-  return {
-    async ask(question: string): Promise<string> {
-      process.stdout.write(question);
-      const { value, done } = await lines.next();
-      return done ? "" : value.trim();
-    },
-    close: () => rl.close(),
-  };
-}
-
-async function promptForName(ask: (q: string) => Promise<string>): Promise<string> {
-  const answer = await ask("Project name (my-mcp-server): ");
-  return answer || "my-mcp-server";
-}
-
-async function promptForTransport(ask: (q: string) => Promise<string>): Promise<Transport> {
-  console.log("\nWhich transport should this server use?");
-  console.log("  1) stdio  — what most MCP hosts expect (Claude Desktop, Claude Code, Cursor, ...)");
-  console.log("  2) http   — serves over HTTP, useful for remote/hosted servers");
-  for (;;) {
-    const answer = await ask("Select 1 or 2 (default: 1): ");
-    if (answer === "" || answer === "1" || answer.toLowerCase() === "stdio") return "stdio";
-    if (answer === "2" || answer.toLowerCase() === "http") return "http";
-    console.log(`"${answer}" isn't a valid choice — enter 1, 2, "stdio", or "http".`);
+function exitIfCancel<T>(value: T | symbol): T {
+  if (p.isCancel(value)) {
+    p.cancel("Maybe next time.");
+    process.exit(0);
   }
+  return value;
 }
 
-async function promptForAuth(ask: (q: string) => Promise<string>): Promise<Auth> {
-  console.log("\nShould this server require authentication?");
-  console.log("  1) none    — no auth (default)");
-  console.log("  2) header  — a static API key sent as a bearer token");
-  console.log("  3) oauth   — full OAuth (PKCE + Dynamic Client Registration + JWKS verification)");
-  for (;;) {
-    const answer = await ask("Select 1, 2, or 3 (default: 1): ");
-    if (answer === "" || answer === "1" || answer.toLowerCase() === "none") return "none";
-    if (answer === "2" || answer.toLowerCase() === "header") return "header";
-    if (answer === "3" || answer.toLowerCase() === "oauth") return "oauth";
-    console.log(`"${answer}" isn't a valid choice — enter 1, 2, 3, "none", "header", or "oauth".`);
-  }
-}
+async function promptMissing(args: ParsedArgs): Promise<{
+  name: string;
+  transport: Transport;
+  auth: Auth;
+  port: number;
+  widget: boolean;
+  tailwind: boolean;
+}> {
+  const skip = args.yes || !process.stdin.isTTY;
 
-async function promptForPort(ask: (q: string) => Promise<string>): Promise<number> {
-  for (;;) {
-    const answer = await ask("HTTP port (default: 3000): ");
-    if (answer === "") return 3000;
-    const n = Number(answer);
-    if (Number.isFinite(n) && Number.isInteger(n) && n >= 0) return n;
-    console.log(`"${answer}" isn't a valid port — enter a non-negative integer (e.g. 3000).`);
+  const name = args.name
+    ? args.name
+    : skip
+      ? "my-mcp-server"
+      : String(
+          exitIfCancel(
+            await p.text({
+              message: "What is your project named?",
+              placeholder: "my-mcp-server",
+              defaultValue: "my-mcp-server",
+            })
+          )
+        ).trim() || "my-mcp-server";
+
+  const transport: Transport = args.transport
+    ? args.transport
+    : skip
+      ? "stdio"
+      : exitIfCancel(
+          await p.select({
+            message: "How should hosts connect?",
+            options: [
+              {
+                value: "stdio" as const,
+                label: "stdio",
+                hint: "Claude Desktop, Cursor, Claude Code",
+              },
+              {
+                value: "http" as const,
+                label: "HTTP",
+                hint: "remote / hosted MCP",
+              },
+            ],
+            initialValue: "stdio" as const,
+          })
+        );
+
+  const auth: Auth = args.auth
+    ? args.auth
+    : skip
+      ? "none"
+      : exitIfCancel(
+          await p.select({
+            message: "Lock the server down?",
+            options: [
+              { value: "none" as const, label: "Open", hint: "no auth" },
+              { value: "header" as const, label: "API key", hint: "bearer token (HTTP)" },
+              { value: "oauth" as const, label: "OAuth", hint: "PKCE + JWKS (HTTP)" },
+            ],
+            initialValue: "none" as const,
+          })
+        );
+
+  let port = args.port ?? 3000;
+  if (transport === "http" && args.port === undefined && !skip) {
+    const raw = String(
+      exitIfCancel(
+        await p.text({
+          message: "Which HTTP port?",
+          placeholder: "3000",
+          defaultValue: "3000",
+          validate(value) {
+            if (value === "") return undefined;
+            const n = Number(value);
+            if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) {
+              return "Enter a non-negative integer";
+            }
+            return undefined;
+          },
+        })
+      )
+    );
+    port = raw === "" ? 3000 : Number(raw);
   }
+
+  const widget =
+    args.widget !== undefined
+      ? args.widget
+      : skip
+        ? true
+        : exitIfCancel(
+            await p.confirm({
+              message: "Include a React widget UI? (use --no-widget to skip)",
+              initialValue: true,
+            })
+          );
+
+  const tailwind =
+    !widget
+      ? false
+      : args.tailwind !== undefined
+        ? args.tailwind
+        : skip
+          ? false
+          : exitIfCancel(
+              await p.confirm({
+                message: "Style the widget with Tailwind CSS?",
+                initialValue: false,
+              })
+            );
+
+  return { name, transport, auth, port, widget, tailwind };
 }
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
-  const needsPrompt = args.name === undefined || args.transport === undefined || args.auth === undefined;
-  const prompter = needsPrompt ? createPrompter() : undefined;
-
-  const rawName = args.name ?? (await promptForName(prompter!.ask));
-  const transport = args.transport ?? (await promptForTransport(prompter!.ask));
-  const auth = args.auth ?? (await promptForAuth(prompter!.ask));
-  // Port only matters for HTTP. Prompt when interactive + http and --port wasn't given.
-  let port = args.port ?? 3000;
-  if (transport === "http" && args.port === undefined && prompter) {
-    port = await promptForPort(prompter.ask);
+  if (args.help) {
+    printHelp();
+    return;
   }
-  prompter?.close();
 
-  // `rawName` may be a plain project name ("my-app") or a path (relative or absolute,
-  // e.g. "./apps/my-app" or "/tmp/my-app") — resolve() handles both against cwd, and the
-  // project name for package.json/README is always derived from the resolved dir's basename.
-  const targetDir = resolve(process.cwd(), rawName);
+  console.log(brand.multiline(BANNER));
+  console.log();
+  p.intro(color.bold("Create an MCP server"));
+  p.log.message(color.dim("React widget by default. Pass --no-widget for tools/prompts/resources only."));
+
+  const answers = await promptMissing(args);
+  const targetDir = resolve(process.cwd(), answers.name);
   const projectName = toPackageName(basename(targetDir));
   const packageManager = args.packageManager ?? detectPackageManager();
 
-  const authSuffix = auth === "none" ? "" : `, ${auth} auth`;
-  const portSuffix = transport === "http" ? `, port ${port}` : "";
-  console.log(`\nScaffolding "${projectName}" (${transport} transport${authSuffix}${portSuffix}) in ${targetDir}...\n`);
+  const summary = [
+    `${color.dim("name")}      ${color.bold(projectName)}`,
+    `${color.dim("transport")} ${answers.transport}${answers.transport === "http" ? `:${answers.port}` : ""}`,
+    `${color.dim("auth")}      ${answers.auth}`,
+    `${color.dim("widget")}    ${answers.widget ? color.magenta(answers.tailwind ? "React + Tailwind" : "React UI") : color.dim("none")}`,
+  ].join("\n");
+  p.note(summary, "Plan");
 
   try {
+    const spin = p.spinner();
+    spin.start("Laying down files");
     await scaffold({
       targetDir,
       projectName,
-      transport,
-      auth,
-      port,
-      install: args.install,
+      transport: answers.transport,
+      auth: answers.auth,
+      port: answers.port,
+      widget: answers.widget,
+      tailwind: answers.tailwind,
+      install: false,
       packageManager,
     });
+    spin.stop("Project ready");
+
+    if (args.install) {
+      spin.start(`Installing with ${packageManager}`);
+      await runInstall(packageManager, targetDir);
+      spin.stop("Dependencies installed");
+    }
   } catch (err) {
-    console.error(`\nFailed: ${err instanceof Error ? err.message : err}`);
+    p.log.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
   }
 
-  console.log(`\nDone! Next steps:\n`);
   const relativeTarget = relative(process.cwd(), targetDir);
-  if (relativeTarget) {
-    console.log(`  cd ${relativeTarget}`);
-  }
-  if (!args.install) {
-    console.log(`  ${packageManager} install`);
-  }
-  if (transport === "http") {
-    console.log(`  ${packageManager} run dev   # HTTP on http://localhost:${port}/mcp\n`);
-  } else {
-    console.log(`  ${packageManager} run dev   # starts with the ${transport} transport\n`);
-  }
+  console.log();
+  console.log(color.bold("  Next"));
+  if (relativeTarget) console.log(`  ${color.cyan("cd")} ${relativeTarget}`);
+  if (!args.install) console.log(`  ${color.cyan(packageManager)} install`);
+  console.log(`  ${color.cyan(`${packageManager} run dev`)}`);
+  console.log();
+  p.outro("Done");
 }
 
-main();
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

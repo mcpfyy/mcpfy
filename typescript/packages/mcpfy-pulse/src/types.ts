@@ -17,6 +17,20 @@ export interface MinimalTransport {
 export type SdkName = "mcpfy-sdk" | "@modelcontextprotocol/sdk" | "unknown";
 export type InstallMode = "sdk-env" | "sdk-wrapper" | "stdio-proxy";
 
+/**
+ * One declared tool from a `tools/list` response, reduced to lightweight metadata —
+ * never the description text or schema itself, same "never content" treatment as
+ * everything else this package captures. Powers capability-gap / orphan-tool /
+ * description-quality scoring server-side without ever shipping the actual text.
+ */
+export interface DeclaredToolMeta {
+  name: string;
+  hasDescription: boolean;
+  descriptionLength: number;
+  paramCount: number;
+  paramsWithDescriptionCount: number;
+}
+
 export interface TelemetryOptions {
   /** Defaults to the MCPFY_API_KEY env var. Unset (in either form) = no-op, nothing is sent. */
   apiKey?: string;
@@ -52,4 +66,17 @@ export interface TelemetryEvent {
   outcome?: "ok" | "error";
   errorCode?: number;
   timestamp: string;
+  /**
+   * `tools/call` only: the result's own `isError` flag (MCP's CallToolResult.isError) —
+   * a tool that ran fine at the JSON-RPC level (outcome:"ok") but reports its own
+   * business-logic failure in-band. One boolean read off the result envelope, same
+   * "protocol metadata, not content" treatment as clientInfo on `initialize` — never the
+   * result content itself.
+   */
+  resultIsError?: boolean;
+  /**
+   * `tools/list` only: the declared tool catalog, reduced to non-content metadata.
+   * See `DeclaredToolMeta`.
+   */
+  declaredTools?: DeclaredToolMeta[];
 }

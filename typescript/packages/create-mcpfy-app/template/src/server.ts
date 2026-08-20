@@ -4,7 +4,11 @@ import { z } from "zod";
 const server = new MCPServer({
   name: "{{PROJECT_NAME}}",
   version: "1.0.0",
-  description: "An MCP server built with mcpfy.",{{AUTH_CONFIG}}
+  description: "An MCP server built with mcpfy.",
+  // HTTP only. MCP endpoint path; defaults to /mcp (this example: http://localhost:3000/hello)
+  basePath: "/hello",
+  // Shown to MCP clients. Remote URL, data: URI, or a local file path (e.g. "./src/icon.svg" or "file:///abs/path/icon.png")
+  icon: "https://mcpfy.ai/images/mcpfy-fav-icon-min.png",{{AUTH_CONFIG}}
 });
 
 server.tool(
@@ -17,6 +21,7 @@ server.tool(
   async ({ a, b }) => object({ sum: a + b })
 );
 
+// Optional MCP extras — not required for tools. Skip these if you only want tools.
 server.resource({ name: "greeting", uri: "app://greeting", title: "Greeting" }, async () =>
   markdown("# Hello from mcpfy!")
 );
