@@ -104,9 +104,9 @@ function templateDirFor(widget: boolean): string {
 }
 
 /**
- * Local checkouts of this monorepo should depend on the sibling mcpfy-sdk (the
- * published npm copy does not yet ship the `mcpfy` CLI). Published create-mcpfy-app
- * falls back to the registry version.
+ * Local checkouts of this monorepo depend on the sibling mcpfy-sdk so scaffolded
+ * projects pick up unpublished changes. Published create-mcpfy-app falls back to
+ * the registry version.
  */
 export function mcpfySdkDependency(): string {
   const candidates = [
@@ -126,7 +126,7 @@ export function mcpfySdkDependency(): string {
       // try next
     }
   }
-  return "^0.2.3";
+  return "^0.3.0";
 }
 
 export function copyTemplate(
