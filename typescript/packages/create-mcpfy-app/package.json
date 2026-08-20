@@ -1,7 +1,7 @@
 {
   "name": "create-mcpfy-app",
   "type": "module",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Scaffold a working MCP server (tools, prompts, resources, optional React widgets) with one command.",
   "author": "mcpfy",
   "license": "MIT",
