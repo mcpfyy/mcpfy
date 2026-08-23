@@ -1,4 +1,4 @@
-export { MCPServer, parsePortFromArgv } from "./mcp-server.js";
+export { MCPServer, parsePortFromArgv, parseHostFromArgv } from "./mcp-server.js";
 export type { MCPServerConfig, ListenOptions, ListenResult } from "./mcp-server.js";
 export type { ServerIcon } from "./icon.js";
 export type { HttpHandle } from "./transport.js";

@@ -52,7 +52,7 @@ export interface ListenOptions {
    * Pass `0` to let the OS pick a free port; the bound port is returned from `listen()`.
    */
   port?: number;
-  /** HTTP only. Defaults to "localhost". */
+  /** HTTP only. Priority: `options.host` → `--host X` / `--host=X` argv → `process.env.HOST` → `"localhost"`. */
   host?: string;
   /** HTTP only. Suppress the startup log line with the local URL. Defaults to false. */
   silent?: boolean;
@@ -85,6 +85,21 @@ export function parsePortFromArgv(argv: string[] = process.argv): number | undef
   return found;
 }
 
+/** Reads `--host X` or `--host=X` from argv. Last occurrence wins (so CLI overrides script defaults). */
+export function parseHostFromArgv(argv: string[] = process.argv): string | undefined {
+  let found: string | undefined;
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === "--host" && argv[i + 1]) {
+      found = argv[i + 1];
+    }
+    if (arg.startsWith("--host=")) {
+      found = arg.slice("--host=".length);
+    }
+  }
+  return found;
+}
+
 function resolveHttpPort(explicit?: number): number {
   if (explicit !== undefined) return explicit;
   const fromArgv = parsePortFromArgv();
@@ -95,6 +110,15 @@ function resolveHttpPort(explicit?: number): number {
     if (Number.isFinite(n) && n >= 0) return n;
   }
   return 3000;
+}
+
+function resolveHttpHost(explicit?: string): string {
+  if (explicit !== undefined) return explicit;
+  const fromArgv = parseHostFromArgv();
+  if (fromArgv !== undefined) return fromArgv;
+  const fromEnv = process.env.HOST;
+  if (fromEnv !== undefined && fromEnv !== "") return fromEnv;
+  return "localhost";
 }
 
 export class MCPServer {
@@ -215,7 +239,7 @@ export class MCPServer {
     }
 
     const port = resolveHttpPort(options.port);
-    const host = options.host ?? "localhost";
+    const host = resolveHttpHost(options.host);
     this.httpHandle = await startHttp(this.nativeServer, {
       port,
       host,

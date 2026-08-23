@@ -36,4 +36,5 @@ project's default:
 
 - Add more tools/prompts/resources in `src/server.ts` — see the
   [mcpfy docs](https://www.npmjs.com/package/mcpfy-sdk) for the full API.
-- `npm run build && npm start` to run the compiled version.
+- `npm run build && npm start` to run the compiled version (same default transport as
+  `dev`; pass `--http --port 3000` or `--stdio` to override).

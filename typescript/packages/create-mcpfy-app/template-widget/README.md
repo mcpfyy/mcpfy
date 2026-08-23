@@ -23,7 +23,8 @@ Production / ChatGPT (iframes cannot use a one-off `dev` bundle the same way):
 
 ```bash
 npm run build        # mcpfy build && tsc
-npm start
+npm start            # HTTP on port {{DEFAULT_PORT}}
+HOST=0.0.0.0 npm start   # bind all interfaces (Docker / Cloud Run / Fly.io)
 ```
 
 ## Use it in an MCP host
