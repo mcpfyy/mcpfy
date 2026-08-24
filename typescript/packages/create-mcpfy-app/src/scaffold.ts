@@ -150,6 +150,7 @@ export function copyTemplate(
     "{{DEFAULT_PORT}}": String(port),
     "{{DEV_PORT_ARGS}}": transport === "http" ? ` --port ${port}` : "",
     "{{MCPFY_DEV_ARGS}}": transport === "http" ? ` -- --http --port ${port}` : "",
+    "{{START_ARGS}}": transport === "http" ? ` --http --port ${port}` : " --stdio",
     "{{AUTH_IMPORT}}": AUTH_IMPORTS[auth],
     "{{AUTH_CONFIG}}": AUTH_CONFIGS[auth],
     "{{MCPFY_SDK}}": mcpfySdkDependency(),

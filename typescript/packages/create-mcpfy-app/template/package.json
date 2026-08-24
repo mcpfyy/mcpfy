@@ -9,7 +9,7 @@
     "dev:stdio": "tsx --env-file-if-exists=.env src/server.ts --stdio",
     "dev:http": "tsx --env-file-if-exists=.env src/server.ts --http --port {{DEFAULT_PORT}}",
     "build": "tsc",
-    "start": "node --env-file-if-exists=.env dist/server.js"
+    "start": "node --env-file-if-exists=.env dist/server.js{{START_ARGS}}"
   },
   "dependencies": {
     "mcpfy-sdk": "{{MCPFY_SDK}}",

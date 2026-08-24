@@ -9,7 +9,7 @@
     "dev:stdio": "mcpfy dev -- --stdio",
     "dev:http": "mcpfy dev -- --http --port {{DEFAULT_PORT}}",
     "build": "mcpfy build && tsc",
-    "start": "node --env-file-if-exists=.env dist/server.js"
+    "start": "node --env-file-if-exists=.env dist/server.js --http --port {{DEFAULT_PORT}}"
   },
   "dependencies": {
     "mcpfy-sdk": "{{MCPFY_SDK}}",

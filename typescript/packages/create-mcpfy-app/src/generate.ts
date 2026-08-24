@@ -75,7 +75,7 @@ const PACKAGE_JSON = `{
     "dev:stdio": "tsx src/server.ts --stdio",
     "dev:http": "tsx src/server.ts --http",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node --env-file-if-exists=.env dist/server.js{{START_ARGS}}"
   },
   "dependencies": {
     "mcpfy-sdk": "^0.2.0",
@@ -524,10 +524,9 @@ await server.listen(transport === "http" ? { transport: "http" } : { transport: 
 `;
 
   return {
-    "package.json": PACKAGE_JSON.replace("{{PROJECT_NAME}}", projectName).replace(
-      "{{DESCRIPTION}}",
-      description.replace(/"/g, '\\"')
-    ),
+    "package.json": PACKAGE_JSON.replace("{{PROJECT_NAME}}", projectName)
+      .replace("{{DESCRIPTION}}", description.replace(/"/g, '\\"'))
+      .replace("{{START_ARGS}}", transport === "http" ? " --http" : " --stdio"),
     "tsconfig.json": TSCONFIG,
     ".gitignore": GITIGNORE,
     ".env.example": buildEnvExample(options.authSpec, serverAuth),
