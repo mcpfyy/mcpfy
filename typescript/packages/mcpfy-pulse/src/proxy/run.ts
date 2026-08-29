@@ -72,7 +72,9 @@ export async function runProxy(argv: string[]): Promise<void> {
 
   pipeLines(process.stdin, child.stdin!, (line) => {
     const message = tryParse(line);
-    if (message) classifier.onIncoming(message);
+    if (!message) return;
+    const event = classifier.onIncoming(message);
+    if (event && batcher) batcher.push(event);
   });
 
   pipeLines(child.stdout!, process.stdout, (line) => {

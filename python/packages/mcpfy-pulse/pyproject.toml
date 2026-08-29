@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mcpfy-pulse"
+version = "0.1.2"
+description = "Telemetry for MCP servers: wrap any read/write stream, instrument a FastMCP app, or proxy any command over stdio, to capture method/size/duration/outcome metrics for the MCPFY dashboard. Never sends argument values or resource content."
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "mcpfy" }]
+requires-python = ">=3.8"
+keywords = ["mcp", "mcpfy", "model-context-protocol", "telemetry", "observability", "proxy", "fastmcp"]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Intended Audience :: Developers",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = ["anyio>=4.0", "httpx>=0.24"]
+
+[project.urls]
+Homepage = "https://github.com/mcpfyy/mcpfy#readme"
+Repository = "https://github.com/mcpfyy/mcpfy"
+Issues = "https://github.com/mcpfyy/mcpfy/issues"
+
+[project.scripts]
+mcpfy-proxy = "mcpfy_pulse.bin.mcpfy_proxy:main"
+
+[project.optional-dependencies]
+# mcp 2.x (released very recently) restructured the low-level Server API
+# (Server.list_tools()/call_tool() decorators are gone) — pinned to the 1.x
+# line this package was built and tested against until 2.x compat is verified.
+dev = ["pytest>=8.0", "pytest-asyncio>=0.24", "mcp>=1.2.0,<2.0.0", "fastmcp>=2.0"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mcpfy_pulse"]
+
+[tool.hatch.build.targets.sdist]
+# Explicit rather than relying purely on defaults: hatchling's sdist build
+# unconditionally force_includes whatever .gitignore it finds walking up to
+# the nearest .git boundary (see hatchling/builders/sdist.py
+# get_default_build_data — independent of `ignore-vcs`, not filtered by
+# `include`/`exclude`). This package didn't have its own .gitignore, so that
+# walk landed on the *monorepo root's* .gitignore instead — irrelevant noise
+# (node_modules/, Go, playground/, ...) in a package sdist. Now that this
+# directory has its own scoped .gitignore (../.gitignore), that's what gets
+# force_include'd instead, which is normal/expected sdist content.
+include = ["src/mcpfy_pulse", "tests", "examples", "README.md", "LICENSE"]
+exclude = ["**/__pycache__", "**/*.pyc"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
