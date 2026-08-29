@@ -72,3 +72,55 @@ export class TelemetryBatcher {
     await this.flush();
   }
 }
+
+const SHUTDOWN_SIGNALS: NodeJS.Signals[] = ["SIGTERM", "SIGINT"];
+const SHUTDOWN_FLUSH_TIMEOUT_MS = 3000;
+
+/**
+ * Installs a best-effort "flush before we die" hook for a batcher that has no
+ * other lifecycle event to hang a flush off of. `withMcpfyTelemetry` wraps a
+ * transport inside the *same process* as the server's own code — unlike the stdio
+ * proxy, there's no child process it can wait on and forward signals to. Without
+ * this, a real MCP session shorter than the flush interval loses every event, via
+ * two independent paths, both confirmed against real client/server sessions:
+ *
+ * - A real MCP client's normal graceful shutdown (close stdin, wait, escalate to
+ *   SIGTERM if the process is still alive) kills the process via an unhandled
+ *   signal — instant, no `exit` event, no flush.
+ * - Some server setups (e.g. the low-level `Server` class, as opposed to
+ *   `McpServer`) simply exit *naturally* on stdin EOF — no signal at all, just
+ *   Node draining an event loop with nothing left to do — which an unhandled
+ *   signal listener does nothing to catch.
+ *
+ * Both are covered here: `beforeExit` for the natural-exit case, `SIGTERM`/
+ * `SIGINT` for the signal case, sharing one flush bounded by a timeout so a slow
+ * or unreachable ingest endpoint can never hang process shutdown either way.
+ */
+export function installShutdownFlush(batcher: TelemetryBatcher): void {
+  let flushed = false;
+  const flushOnce = (): Promise<void> => {
+    if (flushed) return Promise.resolve();
+    flushed = true;
+    const timeout = new Promise<void>((resolve) => setTimeout(resolve, SHUTDOWN_FLUSH_TIMEOUT_MS).unref());
+    return Promise.race([batcher.close(), timeout]).catch(() => {});
+  };
+
+  // Natural exit: nothing else queued on the event loop, no signal involved.
+  // Scheduling async work here (the flush) delays the actual exit until it
+  // settles, without ever holding the process open when there's truly nothing
+  // to flush — `flush()` itself no-ops instantly on an empty queue.
+  process.once("beforeExit", () => {
+    void flushOnce();
+  });
+
+  for (const signal of SHUTDOWN_SIGNALS) {
+    const handler = () => {
+      // Remove ourselves before re-raising the same signal below, so that re-raise
+      // falls through to the default action (or any other listener) instead of
+      // looping back into this handler.
+      process.removeListener(signal, handler);
+      void flushOnce().finally(() => process.kill(process.pid, signal));
+    };
+    process.on(signal, handler);
+  }
+}

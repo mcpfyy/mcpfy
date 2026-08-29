@@ -11,6 +11,7 @@ __pycache__/
 .venv/
 venv/
 *.egg-info/
+.pytest_cache/
 
 # Go
 /bin/
@@ -30,3 +31,4 @@ venv/
 *.tgz
 typescript/packages/*/package-lock.json
 playground/
+testing/

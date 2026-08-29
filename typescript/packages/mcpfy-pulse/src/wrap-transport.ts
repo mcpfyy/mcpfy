@@ -1,6 +1,6 @@
 import { resolveConfig } from "./config.js";
 import { MessageClassifier } from "./core/classify.js";
-import { TelemetryBatcher } from "./core/batcher.js";
+import { TelemetryBatcher, installShutdownFlush } from "./core/batcher.js";
 import type { MinimalTransport, TelemetryOptions } from "./types.js";
 
 /**
@@ -27,6 +27,7 @@ export function withMcpfyTelemetry<T extends MinimalTransport>(transport: T, opt
     sdkVersion: options?.sdkVersion,
     installMode: options?.installMode ?? "sdk-wrapper",
   });
+  installShutdownFlush(batcher);
 
   const wrapped: MinimalTransport = {
     start: () => transport.start(),
@@ -59,7 +60,8 @@ export function withMcpfyTelemetry<T extends MinimalTransport>(transport: T, opt
     },
     set onmessage(handler) {
       transport.onmessage = (message: any, extra?: any) => {
-        classifier.onIncoming(message);
+        const event = classifier.onIncoming(message);
+        if (event) batcher.push(event);
         handler?.(message, extra);
       };
     },
