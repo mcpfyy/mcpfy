@@ -292,6 +292,7 @@ Set `MCPFY_URL` (or `MCP_URL`) to your public MCP origin (for example `https://y
 | `useOpenExternal` | Open a URL via the host |
 | `useLayoutMode` | `{ mode, request, available }` for inline / pip / fullscreen |
 | `useHostContext` | Protocol, layout, locale, platform, `capabilities` (gate follow-up / links / view tools) |
+| `useHostProtocol` | Just the protocol (`"apps-sdk" \| "mcp-apps" \| "mcp-ui" \| "none"`) — same value as `useHostContext().protocol`, without the rest of the context |
 | `useHostTheme` | light / dark |
 | `HostImage` | Image tag with host-safe defaults |
 | `useWidgetState` | Persist JSON on ChatGPT (`widgetState`) |
