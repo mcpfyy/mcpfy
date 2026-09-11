@@ -31,7 +31,15 @@ export { setWidgetHtmlForTest } from "./widgets/index.js";
 export { text, markdown, image, object, error } from "../shared/response-helpers.js";
 export type { ToolContentResult, TypedCallToolResult } from "../shared/response-helpers.js";
 
-export type { AuthConfig, AuthInfo } from "./auth/types.js";
+export type { AuthConfig, AuthInfo, OAuthUser, OAuthTokenVerifier, OAuthVerificationContext } from "./auth/types.js";
 export { jwksVerifier, type JwksVerifierOptions } from "./auth/jwks-verifier.js";
-export { oauthAuth0Provider, oauthWorkOSProvider } from "./auth/presets.js";
+export { oauth } from "./auth/providers.js";
+export type {
+  Auth0OAuthOptions,
+  ClerkOAuthOptions,
+  CustomOAuthProviderOptions,
+  JwtOAuthProviderOptions,
+  OAuthProviderOptions,
+  WorkOSOAuthOptions,
+} from "./auth/providers.js";
 export type { RemoteServerConfig } from "./mount-remote.js";

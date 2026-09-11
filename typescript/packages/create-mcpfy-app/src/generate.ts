@@ -78,7 +78,7 @@ const PACKAGE_JSON = `{
     "start": "node dist/server.js"
   },
   "dependencies": {
-    "mcpfy-sdk": "^0.2.0",
+    "mcpfy-sdk": "^0.3.0",
     "zod": "^3.25.0"
   },
   "devDependencies": {
@@ -412,6 +412,12 @@ function buildEnvExample(authSpec?: ExportAuthSpec | null, serverAuth?: Auth): s
   if (serverAuth === "header") {
     lines.push("# Protects the MCP HTTP endpoint");
     lines.push("API_KEY=change-me");
+    lines.push("");
+  } else if (serverAuth === "oauth") {
+    lines.push("# Protects the MCP HTTP endpoint with OAuth");
+    lines.push("OAUTH_ISSUER=https://your-issuer.example.com");
+    lines.push("OAUTH_JWKS_URL=https://your-issuer.example.com/.well-known/jwks.json");
+    lines.push("MCP_URL=http://localhost:3000/mcp");
     lines.push("");
   }
   const type = authSpec?.type || "none";

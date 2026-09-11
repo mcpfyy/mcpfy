@@ -1,7 +1,9 @@
 import type { IncomingMessage } from "node:http";
-import type { AuthConfig, AuthInfo } from "./types.js";
+import type { AuthConfig, AuthInfo, OAuthVerificationContext } from "./types.js";
 
-export type AuthCheckResult = { ok: true; auth: AuthInfo } | { ok: false };
+export type AuthCheckResult =
+  | { ok: true; auth: AuthInfo }
+  | { ok: false; reason: "missing_token" | "invalid_token" | "insufficient_scope"; requiredScopes?: string[] };
 
 function extractBearerToken(req: IncomingMessage): string | undefined {
   const header = req.headers.authorization;
@@ -12,15 +14,36 @@ function extractBearerToken(req: IncomingMessage): string | undefined {
 }
 
 /** Framework-free bearer-token check — reads `Authorization: Bearer <token>` and dispatches to the configured verifier. */
-export async function checkAuth(req: IncomingMessage, config: AuthConfig): Promise<AuthCheckResult> {
+export async function checkAuth(
+  req: IncomingMessage,
+  config: AuthConfig,
+  context?: OAuthVerificationContext
+): Promise<AuthCheckResult> {
   const token = extractBearerToken(req);
-  if (!token) return { ok: false };
+  if (!token) return { ok: false, reason: "missing_token" };
 
   if (config.type === "header") {
-    const valid = await config.verify(token);
-    return valid ? { ok: true, auth: { claims: {}, token } } : { ok: false };
+    let valid = false;
+    try {
+      valid = await config.verify(token);
+    } catch {
+      // Header verifiers may throw to reject a credential.
+    }
+    return valid ? { ok: true, auth: { claims: {}, token } } : { ok: false, reason: "invalid_token" };
   }
 
-  const auth = await config.verifyToken(token);
-  return auth ? { ok: true, auth: { ...auth, token: auth.token ?? token } } : { ok: false };
+  if (!context) throw new Error("OAuth verification requires a canonical resource context");
+  const auth = await config.verifyToken(token, context);
+  if (!auth) return { ok: false, reason: "invalid_token" };
+
+  const granted = new Set(auth.scopes ?? []);
+  const missing = context.requiredScopes.filter((scope) => !granted.has(scope));
+  if (missing.length > 0) {
+    return { ok: false, reason: "insufficient_scope", requiredScopes: context.requiredScopes };
+  }
+
+  return {
+    ok: true,
+    auth: { ...auth, resource: auth.resource ?? context.resource, token: auth.token ?? token },
+  };
 }

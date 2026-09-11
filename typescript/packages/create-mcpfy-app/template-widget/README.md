@@ -26,6 +26,8 @@ npm run build        # mcpfy build && tsc
 npm start
 ```
 
+{{AUTH_SETUP}}
+
 ## Use it in an MCP host
 
 ```json

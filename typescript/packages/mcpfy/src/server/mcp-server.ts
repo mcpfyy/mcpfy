@@ -38,7 +38,7 @@ export interface MCPServerConfig {
    * Local files are inlined as `data:` URIs so MCP clients can display them.
    */
   icon?: string | ServerIcon;
-  /** Require callers to authenticate — see `mcpfy-sdk/server`'s `jwksVerifier`/`oauthAuth0Provider`/etc. HTTP transport only. */
+  /** Require callers to authenticate — e.g. `oauth.auth0({ domain })`. HTTP only. */
   auth?: AuthConfig;
   /** Root for `tool({ widget: "name" })` folders. Defaults to `src/widgets`. */
   widgetsDir?: string;
