@@ -32,13 +32,20 @@ describe("client <-> server OAuth round trip", () => {
 
   it("discovers, registers, authorizes via PKCE, exchanges tokens, and completes an authenticated tool call", async () => {
     authServer = await startFakeAuthorizationServer();
+    const port = 34000 + Math.floor(Math.random() * 1000);
+    const serverUrl = `http://localhost:${port}/mcp`;
 
     server = new MCPServer({
       name: "oauth-roundtrip-fixture",
       version: "1.0.0",
       auth: {
         type: "oauth",
-        verifyToken: jwksVerifier({ issuer: authServer.url, jwksUri: `${authServer.url}/.well-known/jwks.json` }),
+        resource: serverUrl,
+        verifyToken: jwksVerifier({
+          issuer: authServer.url,
+          jwksUri: `${authServer.url}/.well-known/jwks.json`,
+          audience: (context) => context.resource,
+        }),
         authorizationServers: [authServer.url],
       },
     });
@@ -47,9 +54,7 @@ describe("client <-> server OAuth round trip", () => {
       async (_args, ctx) => object({ sub: ctx.auth?.sub })
     );
 
-    const port = 34000 + Math.floor(Math.random() * 1000);
     await server.listen({ transport: "http", port });
-    const serverUrl = `http://localhost:${port}/mcp`;
 
     const provider = await NodeOAuthClientProvider.create({
       serverUrl,

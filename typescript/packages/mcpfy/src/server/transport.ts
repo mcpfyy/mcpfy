@@ -70,21 +70,69 @@ function formatListenUrl(host: string, port: number, mcpPath: string): string {
   return `http://${hostPart}:${port}${mcpPath}`;
 }
 
-function deriveBaseUrl(req: IncomingMessage, options: { port: number; host: string }): string {
-  const proto = (req.headers["x-forwarded-proto"] as string | undefined)?.split(",")[0] ?? "http";
-  const host = req.headers.host ?? `${options.host}:${options.port}`;
-  return `${proto}://${host}`;
+function protectedResourceMetadataPath(mcpPath: string): string {
+  return mcpPath === "/" ? "/.well-known/oauth-protected-resource" : `/.well-known/oauth-protected-resource${mcpPath}`;
 }
 
-function writeUnauthorized(res: ServerResponse, auth: AuthConfig, req: IncomingMessage, options: { port: number; host: string }): void {
+function protectedResourceMetadataUrl(
+  auth: Extract<AuthConfig, { type: "oauth" }>
+): string {
+  const resource = new URL(auth.resource);
+  return `${resource.origin}${protectedResourceMetadataPath(resource.pathname)}`;
+}
+
+function validateOAuthResource(resource: string): void {
+  let url: URL;
+  try {
+    url = new URL(resource);
+  } catch {
+    throw new Error("OAuth resource must be an absolute URL");
+  }
+  const loopback = url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]";
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) {
+    throw new Error("OAuth resource must use HTTPS (HTTP is allowed only for loopback development)");
+  }
+  if (url.username || url.password || url.hash) {
+    throw new Error("OAuth resource must not contain credentials or a fragment");
+  }
+}
+
+function writeAuthFailure(
+  res: ServerResponse,
+  auth: AuthConfig,
+  result: Extract<Awaited<ReturnType<typeof checkAuth>>, { ok: false }>
+): void {
+  const status = result.reason === "insufficient_scope" ? 403 : 401;
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (auth.type === "oauth") {
-    const baseUrl = deriveBaseUrl(req, options);
-    headers["www-authenticate"] = `Bearer resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`;
+    const params = [
+      `resource_metadata="${protectedResourceMetadataUrl(auth)}"`,
+      `error="${result.reason === "insufficient_scope" ? "insufficient_scope" : "invalid_token"}"`,
+    ];
+    if (result.requiredScopes?.length) params.push(`scope="${result.requiredScopes.join(" ")}"`);
+    headers["www-authenticate"] = `Bearer ${params.join(", ")}`;
   }
   res
-    .writeHead(401, headers)
-    .end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32001, message: "Unauthorized" }, id: null }));
+    .writeHead(status, headers)
+    .end(JSON.stringify({
+      jsonrpc: "2.0",
+      error: {
+        code: status === 403 ? -32003 : -32001,
+        message: status === 403 ? "Insufficient scope" : "Unauthorized",
+      },
+      id: null,
+    }));
+}
+
+function writeInternalError(res: ServerResponse): void {
+  if (res.headersSent) return;
+  res.writeHead(500, { "content-type": "application/json" }).end(
+    JSON.stringify({
+      jsonrpc: "2.0",
+      error: { code: -32603, message: "Internal server error" },
+      id: null,
+    })
+  );
 }
 
 export async function startHttp(
@@ -94,6 +142,13 @@ export async function startHttp(
   const { StreamableHTTPServerTransport } = await import("@modelcontextprotocol/sdk/server/streamableHttp.js");
   const http = await import("node:http");
   const mcpPath = normalizeMcpPath(options.mcpPath);
+  if (options.auth?.type === "oauth") validateOAuthResource(options.auth.resource);
+  const metadataPaths = new Set([
+    "/.well-known/oauth-protected-resource",
+    ...(options.auth?.type === "oauth"
+      ? [protectedResourceMetadataPath(new URL(options.auth.resource).pathname)]
+      : []),
+  ]);
 
   // Stateless mode: the SDK requires a *fresh* transport per POST (a stateless
   // transport throws if reused — "Stateless transport cannot be reused across
@@ -109,9 +164,6 @@ export async function startHttp(
   // outside the queue — per spec, clients treat 405 there as "not supported" and
   // carry on, but leaving one open would otherwise block every request behind it.
   let queue: Promise<void> = Promise.resolve();
-  // Mutated after listen() so request handlers see the real bound port (e.g. port 0).
-  const listenState = { port: options.port, host: options.host };
-
   async function handlePost(req: IncomingMessage, res: ServerResponse): Promise<void> {
     try {
       const body = await readJsonBody(req);
@@ -138,15 +190,15 @@ export async function startHttp(
   }
 
   const httpServer = http.createServer((req: IncomingMessage, res: ServerResponse) => {
-    if (options.auth?.type === "oauth" && req.method === "GET" && req.url === "/.well-known/oauth-protected-resource") {
-      const baseUrl = deriveBaseUrl(req, listenState);
+    const pathname = requestPathname(req.url);
+    if (options.auth?.type === "oauth" && req.method === "GET" && metadataPaths.has(pathname)) {
       res
-        .writeHead(200, { "content-type": "application/json" })
-        .end(JSON.stringify(buildProtectedResourceMetadata(options.auth, baseUrl, mcpPath)));
+        .writeHead(200, { "content-type": "application/json", "access-control-allow-origin": "*", "cache-control": "no-store" })
+        .end(JSON.stringify(buildProtectedResourceMetadata(options.auth)));
       return;
     }
 
-    if (requestPathname(req.url) !== mcpPath) {
+    if (pathname !== mcpPath) {
       res.writeHead(404).end();
       return;
     }
@@ -163,19 +215,32 @@ export async function startHttp(
 
     if (options.auth) {
       const auth = options.auth;
-      queue = queue.then(async () => {
-        const result = await checkAuth(req, auth);
-        if (!result.ok) {
-          writeUnauthorized(res, auth, req, listenState);
-          return;
-        }
-        setRequestAuth(nativeServer, result.auth);
-        setRequestHeaders(nativeServer, extractForwardableAuthHeaders(req));
+      queue = queue.catch(() => undefined).then(async () => {
         try {
-          await handlePost(req, res);
-        } finally {
-          setRequestAuth(nativeServer, undefined);
-          setRequestHeaders(nativeServer, undefined);
+          const result = await checkAuth(
+            req,
+            auth,
+            auth.type === "oauth"
+              ? {
+                resource: auth.resource,
+                  requiredScopes: auth.requiredScopes ?? [],
+                }
+              : undefined
+          );
+          if (!result.ok) {
+            writeAuthFailure(res, auth, result);
+            return;
+          }
+          setRequestAuth(nativeServer, result.auth);
+          setRequestHeaders(nativeServer, extractForwardableAuthHeaders(req));
+          try {
+            await handlePost(req, res);
+          } finally {
+            setRequestAuth(nativeServer, undefined);
+            setRequestHeaders(nativeServer, undefined);
+          }
+        } catch {
+          writeInternalError(res);
         }
       });
       return;
@@ -198,7 +263,6 @@ export async function startHttp(
 
   const address = httpServer.address() as AddressInfo | null;
   const boundPort = address?.port ?? options.port;
-  listenState.port = boundPort;
   const url = formatListenUrl(options.host, boundPort, mcpPath);
 
   if (!options.silent) {

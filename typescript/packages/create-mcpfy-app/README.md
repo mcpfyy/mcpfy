@@ -60,21 +60,23 @@ from the template — you still do **not** install Vite.
 ```bash
 npx create-mcpfy-app@latest my-server --stdio
 npx create-mcpfy-app@latest my-server --http --port 4000
+npx create-mcpfy-app@latest my-server --http --auth oauth --oauth-provider auth0
 npx create-mcpfy-app@latest my-server --no-widget
 npx create-mcpfy-app@latest my-server -y --no-install
 ```
 
-| Flag | Meaning |
-| --- | --- |
-| `--stdio` / `--http` / `--transport` | default transport |
-| `--auth none\|header\|oauth` | listener auth |
-| `--port N` | HTTP port baked into scripts |
-| `--no-widget` | skip React UI (tools/prompts/resources only) |
-| `--widget` | force the widget template (default) |
-| `--tailwind` | Tailwind CSS for the widget (`@import "tailwindcss"` in `styles.css`) |
-| `--pm npm\|pnpm\|yarn` | package manager |
-| `--no-install` | skip `install` |
-| `-y`, `--yes` | skip prompts (stdio, no auth, **with widget**) |
+| Flag                                                                             | Meaning                                                               |
+| -------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `--stdio` / `--http` / `--transport`                                             | default transport                                                     |
+| `--auth none\|header\|oauth`                                                     | listener auth                                                         |
+| `--oauth-provider auth0\|clerk\|workos\|supabase\|better-auth\|keycloak\|custom` | OAuth provider (requires `--auth oauth`)                              |
+| `--port N`                                                                       | HTTP port baked into scripts                                          |
+| `--no-widget`                                                                    | skip React UI (tools/prompts/resources only)                          |
+| `--widget`                                                                       | force the widget template (default)                                   |
+| `--tailwind`                                                                     | Tailwind CSS for the widget (`@import "tailwindcss"` in `styles.css`) |
+| `--pm npm\|pnpm\|yarn`                                                           | package manager                                                       |
+| `--no-install`                                                                   | skip `install`                                                        |
+| `-y`, `--yes`                                                                    | skip prompts (stdio, no auth, **with widget**)                        |
 
 If no package manager is specified, the CLI uses whichever one launched it.
 
