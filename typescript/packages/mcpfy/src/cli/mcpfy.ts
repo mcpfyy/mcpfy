@@ -85,7 +85,7 @@ function runDev(argv: string[]): void {
   }).filter((a) => a !== "dev");
 
   const [cmd, ...cmdPrefix] = findTsx(cwd);
-  const child = spawn(cmd, [...cmdPrefix, entry, ...passthrough], {
+  const child = spawn(cmd, [...cmdPrefix, "--env-file-if-exists=.env", entry, ...passthrough], {
     cwd,
     stdio: "inherit",
     env: { ...process.env, MCPFY_WIDGET_DEV: "1" },

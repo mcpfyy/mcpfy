@@ -60,6 +60,7 @@ from the template — you still do **not** install Vite.
 ```bash
 npx create-mcpfy-app@latest my-server --stdio
 npx create-mcpfy-app@latest my-server --http --port 4000
+npx create-mcpfy-app@latest my-server --http --auth oauth --oauth-provider auth0
 npx create-mcpfy-app@latest my-server --no-widget
 npx create-mcpfy-app@latest my-server -y --no-install
 ```
@@ -68,6 +69,7 @@ npx create-mcpfy-app@latest my-server -y --no-install
 | --- | --- |
 | `--stdio` / `--http` / `--transport` | default transport |
 | `--auth none\|header\|oauth` | listener auth |
+| `--oauth-provider auth0\|clerk\|workos\|custom` | OAuth provider (requires `--auth oauth`) |
 | `--port N` | HTTP port baked into scripts |
 | `--no-widget` | skip React UI (tools/prompts/resources only) |
 | `--widget` | force the widget template (default) |

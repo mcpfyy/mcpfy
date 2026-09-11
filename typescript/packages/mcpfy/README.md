@@ -95,6 +95,50 @@ interface MCPServerConfig {
 
 `MCPServer` wraps the official SDK while exposing it as `server.nativeServer` whenever you need lower level control.
 
+## Require OAuth sign-in
+
+OAuth protects the HTTP MCP endpoint before tools, resources, or prompts can be used. Provider helpers configure discovery, bearer-token verification, resource binding, scopes, and `ctx.auth` together.
+
+Use a provider-native field for an external identity provider:
+
+```ts
+import { MCPServer, oauth } from "mcpfy-sdk/server";
+
+const server = new MCPServer({
+  name: "private-server",
+  version: "1.0.0",
+  auth: oauth.auth0({
+    domain: process.env.AUTH0_DOMAIN!,
+  }),
+});
+```
+
+Available configurations are `oauth.auth0`, `oauth.clerk`, `oauth.workos`, `oauth.jwt`, and `oauth.custom`. Set `MCP_URL` to the exact canonical public MCP endpoint. OAuth configuration fails fast when it is missing. Legacy `MCPFY_MCP_URL` and `MCPFY_URL` values are still read for compatibility.
+
+`oauth.clerk` uses Clerk's token-type-aware backend verifier so Clerk session tokens cannot be confused with OAuth access tokens. Set `CLERK_SECRET_KEY` on the server; JWT and opaque Clerk OAuth tokens are both supported. Never expose this secret to a browser or MCP client.
+
+Provider helpers require a valid access token but do not require any scopes by default. Add `requiredScopes` only after configuring the same scopes in your authorization provider:
+
+```ts
+auth: oauth.auth0({
+  domain: process.env.AUTH0_DOMAIN!,
+  requiredScopes: ["tools:execute"],
+})
+```
+
+Authenticated handlers receive normalized and raw verified identity:
+
+```ts
+server.tool({ name: "whoami", schema: z.object({}) }, async (_input, ctx) =>
+  object({
+    userId: ctx.auth?.user?.id,
+    scopes: ctx.auth?.scopes ?? [],
+  })
+);
+```
+
+OAuth applies only to HTTP transport. Stdio authentication remains the responsibility of the local process environment.
+
 ---
 
 ## Tools
@@ -276,7 +320,7 @@ widget: {
 
 Omit `csp` unless the widget loads remote URLs. mcpfy writes those origins into the widget HTML (`Content-Security-Policy` `connect-src`) and into host metadata: ChatGPT (`openai/widgetCSP`), Claude (MCP Apps `ui.csp`), and MCP-UI (`resource._meta.csp`). ChatGPT and Claude apply a tight policy as soon as you declare one: `connectDomains` for `fetch`, `resourceDomains` for `<img>` / fonts / CSS. Inline SVG and inlined JS/CSS do not need extra resource domains. Avoid `data:` image URLs — hosts that see a widget CSP often omit `data:` from `img-src`.
 
-Set `MCPFY_URL` (or `MCP_URL`) to your public MCP origin (for example `https://your-host/mcp`). That origin is merged into `connectDomains` and `resourceDomains` so the iframe can `fetch` your own server. Do not use `127.0.0.1` for ChatGPT — the iframe cannot reach it.
+Set `MCP_URL` to your public MCP endpoint (for example `https://your-host/mcp`). Its origin is merged into `connectDomains` and `resourceDomains` so the iframe can `fetch` your own server. Do not use `127.0.0.1` for ChatGPT — the iframe cannot reach it.
 
 `MCPServer({ widgetsDir: "src/widgets" })` changes the folder root. A `dir` that looks like a path (`./ui/weather`) is resolved from cwd.
 
@@ -299,7 +343,7 @@ Set `MCPFY_URL` (or `MCP_URL`) to your public MCP origin (for example `https://y
 | `useModelContext` | `{ supported, publish }` — next-turn context without a chat message (MCP Apps) |
 | `useViewTool` | Register a tool the **model** can call on this mounted view (MCP Apps). No-op in ChatGPT / MCP-UI. |
 
-ChatGPT / remote Apps SDK iframes cannot reach `127.0.0.1`. Set `MCPFY_URL` to a public origin, and run `mcpfy build` before production.
+ChatGPT / remote Apps SDK iframes cannot reach `127.0.0.1`. Set `MCP_URL` to the public MCP endpoint, and run `mcpfy build` before production.
 
 ### Deprecated: `server.widget()` + raw HTML
 

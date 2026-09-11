@@ -3,7 +3,15 @@ import * as p from "@clack/prompts";
 import color from "picocolors";
 import gradient from "gradient-string";
 import { basename, relative, resolve } from "node:path";
-import { detectPackageManager, runInstall, scaffold, toPackageName, type Auth, type Transport } from "./scaffold.js";
+import {
+  detectPackageManager,
+  runInstall,
+  scaffold,
+  toPackageName,
+  type Auth,
+  type OAuthProvider,
+  type Transport,
+} from "./scaffold.js";
 
 interface ParsedArgs {
   name?: string;
@@ -11,6 +19,7 @@ interface ParsedArgs {
   packageManager?: string;
   transport?: Transport;
   auth?: Auth;
+  oauthProvider?: OAuthProvider;
   port?: number;
   widget?: boolean;
   tailwind?: boolean;
@@ -48,6 +57,7 @@ ${color.dim("Usage:")}
 ${color.dim("Options:")}
   --stdio, --http, --transport <stdio|http>
   --auth <none|header|oauth>
+  --oauth-provider <auth0|clerk|workos|custom>
   --port <n>              HTTP listen port (default 3000)
   --no-widget             tools/prompts/resources only (no React UI)
   --tailwind              widget UI styled with Tailwind CSS
@@ -88,6 +98,13 @@ function parseArgs(argv: string[]): ParsedArgs {
         process.exit(1);
       }
       args.auth = value;
+    } else if (arg === "--oauth-provider") {
+      const value = argv[++i];
+      if (!["auth0", "clerk", "workos", "custom"].includes(value)) {
+        console.error(`Invalid --oauth-provider value "${value}" — expected "auth0", "clerk", "workos", or "custom".`);
+        process.exit(1);
+      }
+      args.oauthProvider = value as OAuthProvider;
     } else if (!arg.startsWith("-") && !args.name) {
       args.name = arg;
     }
@@ -107,6 +124,7 @@ async function promptMissing(args: ParsedArgs): Promise<{
   name: string;
   transport: Transport;
   auth: Auth;
+  oauthProvider?: OAuthProvider;
   port: number;
   widget: boolean;
   tailwind: boolean;
@@ -166,6 +184,30 @@ async function promptMissing(args: ParsedArgs): Promise<{
           })
         );
 
+  if (transport === "stdio" && auth !== "none") {
+    throw new Error(`${auth} authentication requires HTTP transport. Use --http or --auth none.`);
+  }
+  if (args.oauthProvider && auth !== "oauth") {
+    throw new Error("--oauth-provider requires --auth oauth");
+  }
+
+  const oauthProvider: OAuthProvider | undefined = auth !== "oauth"
+    ? undefined
+    : args.oauthProvider ?? (skip
+      ? "custom"
+      : exitIfCancel(
+          await p.select({
+            message: "Which OAuth provider?",
+            options: [
+              { value: "auth0" as const, label: "Auth0", hint: "requires AUTH0_DOMAIN" },
+              { value: "clerk" as const, label: "Clerk", hint: "requires CLERK_DOMAIN + CLERK_SECRET_KEY" },
+              { value: "workos" as const, label: "WorkOS", hint: "requires WORKOS_AUTHKIT_DOMAIN" },
+              { value: "custom" as const, label: "Custom JWT/OIDC", hint: "issuer + JWKS URL" },
+            ],
+            initialValue: "auth0" as const,
+          })
+        ));
+
   let port = args.port ?? 3000;
   if (transport === "http" && args.port === undefined && !skip) {
     const raw = String(
@@ -214,7 +256,7 @@ async function promptMissing(args: ParsedArgs): Promise<{
               })
             );
 
-  return { name, transport, auth, port, widget, tailwind };
+  return { name, transport, auth, oauthProvider, port, widget, tailwind };
 }
 
 async function main(): Promise<void> {
@@ -238,6 +280,7 @@ async function main(): Promise<void> {
     `${color.dim("name")}      ${color.bold(projectName)}`,
     `${color.dim("transport")} ${answers.transport}${answers.transport === "http" ? `:${answers.port}` : ""}`,
     `${color.dim("auth")}      ${answers.auth}`,
+    ...(answers.oauthProvider ? [`${color.dim("provider")}  ${answers.oauthProvider}`] : []),
     `${color.dim("widget")}    ${answers.widget ? color.magenta(answers.tailwind ? "React + Tailwind" : "React UI") : color.dim("none")}`,
   ].join("\n");
   p.note(summary, "Plan");
@@ -250,6 +293,7 @@ async function main(): Promise<void> {
       projectName,
       transport: answers.transport,
       auth: answers.auth,
+      oauthProvider: answers.oauthProvider,
       port: answers.port,
       widget: answers.widget,
       tailwind: answers.tailwind,

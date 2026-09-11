@@ -15,6 +15,8 @@ PORT=8080 npm run dev:http        # or via env
 
 On HTTP start the SDK prints the local MCP URL, e.g. `MCP server listening on http://localhost:{{DEFAULT_PORT}}/mcp  (port {{DEFAULT_PORT}})`.
 
+{{AUTH_SETUP}}
+
 ## Use it in an MCP host
 
 Most hosts (Claude Desktop, Claude Code, Cursor, etc.) launch servers over stdio — point your
