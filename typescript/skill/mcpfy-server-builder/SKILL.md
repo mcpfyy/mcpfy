@@ -52,7 +52,7 @@ Follow these regardless of which reference file the current task touches — vio
 
 ## Using the bundled template
 
-`assets/template/` is a complete, minimal mcpfy project: `package.json`, `tsconfig.json`, `src/server.ts` (one `add` tool plus one `greet` tool using `text()`/`object()`), and `src/widgets/example/main.tsx` (a widget using `useToolPayload`). Copy it into the user's target directory as a starting point, rename the package, then extend it:
+`assets/template/` is a complete, minimal mcpfy project based on the canonical `create-mcpfy-app` scaffold. It includes `package.json`, `tsconfig.json`, `.env.example`, `README.md`, `src/server.ts`, and an example widget at `src/widgets/example/main.tsx` using `useToolPayload`. Copy it into the user's target directory as a starting point, then customize it for the user's server:
 
 ```bash
 cp -r assets/template/* /path/to/my-mcp-server/
@@ -61,4 +61,4 @@ npm install
 npm run dev
 ```
 
-This is faster than writing boilerplate from scratch and guarantees the scaffold itself is correct against the SDK — spend the effort instead on the tools/resources/widgets that make this server actually useful to the user.
+This provides the same baseline structure and configuration as the official mcpfy scaffold, so the generated project stays aligned with the SDK. Spend the effort instead on the tools, resources, widgets, and behavior that make the server useful to the user.

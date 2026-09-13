@@ -2,6 +2,19 @@
 
 Widgets give a tool an interactive UI instead of (or alongside) plain text/structured output. Read this file whenever a task involves an MCP App / interactive widget, not just a plain tool result.
 
+## Table of Contents
+
+- [Widgets](#widgets)
+  - [Table of Contents](#table-of-contents)
+  - [Directory convention](#directory-convention)
+  - [Registering a widget on a tool](#registering-a-widget-on-a-tool)
+  - [The widget entry file](#the-widget-entry-file)
+  - [Widget content shape (when returning content directly, not via a bound tool)](#widget-content-shape-when-returning-content-directly-not-via-a-bound-tool)
+  - [Widget size](#widget-size)
+  - [CLI](#cli)
+  - [React hooks (`mcpfy-sdk/widget`)](#react-hooks-mcpfy-sdkwidget)
+  - [Troubleshooting](#troubleshooting)
+
 ## Directory convention
 
 ```text
@@ -89,22 +102,22 @@ A production server that serves a registered widget expects the built assets to 
 
 Install `react` and `react-dom` (peer dependencies) alongside `mcpfy-sdk` for widget code. Common hooks, all used inside the standard `main.tsx` (which already has the runtime):
 
-| Hook / component | Purpose |
-|---|---|
-| `useToolPayload()` | `{ input, output, isPending, error }` for the tool this widget is bound to |
+| Hook / component                        | Purpose                                                                                 |
+| --------------------------------------- | --------------------------------------------------------------------------------------- |
+| `useToolPayload()`                      | `{ input, output, isPending, error }` for the tool this widget is bound to              |
 | `useCallTool()` / `useCallTool("name")` | Call an MCP tool from the widget; named form returns `{ call, isPending, data, error }` |
-| `useLinkedTool()` | `{ name, call }` for the tool this widget is bound to, for calling it again |
-| `useHostContext()` | `{ protocol, layoutMode, locale, platform, capabilities }` |
-| `useHostProtocol()` | `"apps-sdk" \| "mcp-apps" \| "mcp-ui" \| "none"` |
-| `useHostTheme()` | `"light" \| "dark"` |
-| `useLayoutMode()` | `{ mode, available, request(mode) }` |
-| `useWidgetState()` | `{ state, setState }` — host-persisted, survives remounts when supported |
-| `useViewState(initial)` | `[state, setState]` combining local state + host persistence + model context |
-| `useModelContext()` | `{ supported, publish({ text, structuredContent }) }` — publish state to the model |
-| `useViewTool(definition, handler)` | Registers a tool the host/model can call while this widget is mounted |
-| `useSendFollowUp()` | Send a follow-up chat message as if the user typed it |
-| `useOpenExternal()` | Open an external URL through the host |
-| `HostImage` | `<img>` replacement defaulting `referrerPolicy` to `no-referrer` |
+| `useLinkedTool()`                       | `{ name, call }` for the tool this widget is bound to, for calling it again             |
+| `useHostContext()`                      | `{ protocol, layoutMode, locale, platform, capabilities }`                              |
+| `useHostProtocol()`                     | `"apps-sdk" \| "mcp-apps" \| "mcp-ui" \| "none"`                                        |
+| `useHostTheme()`                        | `"light" \| "dark"`                                                                     |
+| `useLayoutMode()`                       | `{ mode, available, request(mode) }`                                                    |
+| `useWidgetState()`                      | `{ state, setState }` — host-persisted, survives remounts when supported                |
+| `useViewState(initial)`                 | `[state, setState]` combining local state + host persistence + model context            |
+| `useModelContext()`                     | `{ supported, publish({ text, structuredContent }) }` — publish state to the model      |
+| `useViewTool(definition, handler)`      | Registers a tool the host/model can call while this widget is mounted                   |
+| `useSendFollowUp()`                     | Send a follow-up chat message as if the user typed it                                   |
+| `useOpenExternal()`                     | Open an external URL through the host                                                   |
+| `HostImage`                             | `<img>` replacement defaulting `referrerPolicy` to `no-referrer`                        |
 
 Example:
 

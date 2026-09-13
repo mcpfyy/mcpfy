@@ -1,59 +1,43 @@
-import { MCPServer, object, text } from "mcpfy-sdk/server";
+import { MCPServer, markdown, object, text{{AUTH_IMPORT}} } from "mcpfy-sdk/server";
 import { z } from "zod";
 
 const server = new MCPServer({
-  name: "my-mcp-server",
+  name: "{{PROJECT_NAME}}",
   version: "1.0.0",
-  description: "A starter MCP server built with mcpfy-sdk",
+  description: "An MCP server built with mcpfy.",
+  // HTTP only. MCP endpoint path; defaults to /mcp (this example: http://localhost:3000/hello)
+  basePath: "/hello",
+  // Shown to MCP clients. Remote URL, data: URI, or a local file path (e.g. "./src/icon.svg" or "file:///abs/path/icon.png")
+  icon: "https://mcpfy.ai/images/mcpfy-fav-icon-min.png",{{AUTH_CONFIG}}
 });
 
-// A tool returning structured data with object().
 server.tool(
   {
     name: "add",
     description: "Add two numbers",
-    schema: z.object({
-      a: z.number(),
-      b: z.number(),
-    }),
+    schema: z.object({ a: z.number(), b: z.number() }),
+    outputSchema: z.object({ sum: z.number() }),
   },
-  async ({ a, b }) => {
-    return object({ result: a + b });
-  }
+  async ({ a, b }) => object({ sum: a + b })
 );
 
-// A tool returning plain text with text().
-server.tool(
-  {
-    name: "greet",
-    description: "Greet a person by name",
-    schema: z.object({
-      name: z.string(),
-    }),
-  },
-  async ({ name }) => {
-    return text(`Hello, ${name}!`);
-  }
+// Optional MCP extras — not required for tools. Skip these if you only want tools.
+server.resource({ name: "greeting", uri: "app://greeting", title: "Greeting" }, async () =>
+  markdown("# Hello from mcpfy!")
 );
 
-// A tool bound to an interactive widget. See src/widgets/example/main.tsx.
-// Delete this tool (and the widgets/ directory) if the server doesn't need a UI.
-server.tool(
-  {
-    name: "example-widget",
-    description: "Return a value shown in an example interactive widget",
-    schema: z.object({
-      label: z.string().default("World"),
-    }),
-    widget: "example",
-  },
-  async ({ label }) => {
-    return object({ label });
-  }
+server.prompt(
+  { name: "greet", description: "Generate a greeting", schema: z.object({ name: z.string() }) },
+  async ({ name }) => text(`Hello, ${name}!`)
 );
 
-// Default transport is stdio, for MCP hosts that launch this process directly.
-// Switch to { transport: "http", port: 4000 } to expose an HTTP endpoint instead.
-await server.listen({
-  transport: "stdio",
-});
+// Defaults to the transport chosen at scaffold time ({{DEFAULT_TRANSPORT}}); pass --http or
+// --stdio to override for a single run without touching this file.
+// HTTP port priority: --port N → PORT env → 3000 (npm scripts pass --port {{DEFAULT_PORT}}).
+const transport = process.argv.includes("--http")
+  ? "http"
+  : process.argv.includes("--stdio")
+    ? "stdio"
+    : "{{DEFAULT_TRANSPORT}}";
+
+await server.listen(transport === "http" ? { transport: "http" } : { transport: "stdio" });

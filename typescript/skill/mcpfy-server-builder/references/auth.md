@@ -2,6 +2,20 @@
 
 Read this file when the server needs to verify incoming access tokens over HTTP, or when an MCP client needs to complete an OAuth flow against a protected server.
 
+## Table of contents
+
+- [Authentication](#authentication)
+  - [Table of contents](#table-of-contents)
+  - [Two ways to protect a server](#two-ways-to-protect-a-server)
+  - [Protecting an HTTP server (OAuth + JWKS)](#protecting-an-http-server-oauth--jwks)
+    - [Preset verifiers for common providers](#preset-verifiers-for-common-providers)
+    - [What this unlocks](#what-this-unlocks)
+    - [Request flow](#request-flow)
+  - [Forwarding auth headers to upstream services](#forwarding-auth-headers-to-upstream-services)
+  - [Client-side OAuth (connecting to a protected server)](#client-side-oauth-connecting-to-a-protected-server)
+  - [Troubleshooting](#troubleshooting)
+  - [Security notes](#security-notes)
+
 ## Two ways to protect a server
 
 `AuthConfig` (the `auth` field of `MCPServerConfig`) has two shapes:

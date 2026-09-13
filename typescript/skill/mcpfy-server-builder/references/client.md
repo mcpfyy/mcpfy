@@ -5,6 +5,17 @@ Read this file when the task is to *connect to* an MCP server (this project's ow
 ```typescript
 import { MCPClient } from "mcpfy-sdk/client";
 ```
+## Table of contents
+
+- [Client](#client)
+  - [Table of contents](#table-of-contents)
+  - [Configuring servers](#configuring-servers)
+    - [HTTP auth variants](#http-auth-variants)
+  - [Sessions](#sessions)
+  - [Using a session](#using-a-session)
+  - [Connectors (transport-level control)](#connectors-transport-level-control)
+  - [Complete example](#complete-example)
+
 
 ## Configuring servers
 

@@ -1,23 +1,39 @@
-# my-mcp-server
+# {{PROJECT_NAME}}
 
-A starter MCP server built with [mcpfy-sdk](https://github.com/mcpfyy/mcpfy).
+An MCP server built with [mcpfy](https://www.npmjs.com/package/mcpfy-sdk) — exposes one tool
+(`add`), one resource (`app://greeting`), and one prompt (`greet`).
 
-## Setup
+## Run
 
 ```bash
-npm install
-npm run dev
+npm run dev          # runs with the {{DEFAULT_TRANSPORT}} transport (chosen when this project was scaffolded)
+npm run dev:stdio    # force stdio transport
+npm run dev:http     # force HTTP on port {{DEFAULT_PORT}}
+npm run dev:http -- --port 8080   # override port for one run
+PORT=8080 npm run dev:http        # or via env
 ```
 
-This starts the server over stdio (the default transport), ready for an MCP host to launch it as a child process.
+On HTTP start the SDK prints the local MCP URL, e.g. `MCP server listening on http://localhost:{{DEFAULT_PORT}}/mcp  (port {{DEFAULT_PORT}})`.
 
-## What's included
+## Use it in an MCP host
 
-- `src/server.ts` — server setup and two plain tools (`add`, `greet`) plus one widget-bound tool (`example-widget`).
-- `src/widgets/example/main.tsx` — the interactive widget UI for `example-widget`.
+Most hosts (Claude Desktop, Claude Code, Cursor, etc.) launch servers over stdio — point your
+host's MCP config at this project with the `--stdio` flag so it works regardless of this
+project's default:
+
+```json
+{
+  "mcpServers": {
+    "{{PROJECT_NAME}}": {
+      "command": "npx",
+      "args": ["tsx", "/absolute/path/to/src/server.ts", "--stdio"]
+    }
+  }
+}
+```
 
 ## Next steps
 
-- Add more tools with `server.tool(...)` — see the `mcpfy-server-builder` skill's `references/server.md`.
-- To expose this over HTTP instead of stdio, change the `server.listen(...)` call at the bottom of `src/server.ts` to `{ transport: "http", port: 4000 }`.
-- If you add or change widgets, run `mcpfy dev` while developing and `mcpfy build` before any production start.
+- Add more tools/prompts/resources in `src/server.ts` — see the
+  [mcpfy docs](https://www.npmjs.com/package/mcpfy-sdk) for the full API.
+- `npm run build && npm start` to run the compiled version.

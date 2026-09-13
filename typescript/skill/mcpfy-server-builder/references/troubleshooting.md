@@ -2,6 +2,15 @@
 
 Run through this before telling the user a change is done. Most mcpfy failures come from a small, repeatable set of mistakes — check for these specifically rather than just reading the code over once.
 
+## Table of Contents
+
+- [Troubleshooting \& pre-flight checklist](#troubleshooting--pre-flight-checklist)
+  - [Table of Contents](#table-of-contents)
+  - [Checklist](#checklist)
+  - [Type-checking gotchas (`mcpfy-sdk@0.3.1`)](#type-checking-gotchas-mcpfy-sdk031)
+  - [Symptom → likely cause](#symptom--likely-cause)
+  - [Verifying a change actually works](#verifying-a-change-actually-works)
+
 ## Checklist
 
 - [ ] Every `server.tool(...)`/`server.prompt(...)` callback returns `text()`, `markdown()`, or `object()` — not a bare object literal, and not a hand-built `{ content: [...] }`.

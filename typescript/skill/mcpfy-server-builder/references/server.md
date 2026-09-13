@@ -1,5 +1,23 @@
 # Server
 
+## Table of Contents
+
+- [Server](#server)
+  - [Table of Contents](#table-of-contents)
+  - [Creating a server](#creating-a-server)
+  - [Tools](#tools)
+    - [Result helpers — always use these, never a bare object](#result-helpers--always-use-these-never-a-bare-object)
+    - [Errors](#errors)
+    - [Images](#images)
+    - [Organizing many tools](#organizing-many-tools)
+  - [Resources](#resources)
+  - [Prompts](#prompts)
+  - [Context (`ctx`)](#context-ctx)
+  - [Starting the server](#starting-the-server)
+    - [Port resolution order](#port-resolution-order)
+  - [Stopping and refreshing](#stopping-and-refreshing)
+  - [Complete example](#complete-example)
+
 ## Creating a server
 
 ```typescript
