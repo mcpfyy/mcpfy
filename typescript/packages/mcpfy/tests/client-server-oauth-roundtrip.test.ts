@@ -44,7 +44,6 @@ describe("client <-> server OAuth round trip", () => {
         verifyToken: jwksVerifier({
           issuer: authServer.url,
           jwksUri: `${authServer.url}/.well-known/jwks.json`,
-          audience: (context) => context.resource,
         }),
         authorizationServers: [authServer.url],
       },

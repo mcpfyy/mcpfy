@@ -33,7 +33,7 @@ export const FORWARDABLE_AUTH_HEADER_NAMES = [
   "x-auth-token",
 ] as const;
 
-export interface ToolContext {
+export interface ToolContext<TUser extends import("./auth/types.js").OAuthUser = import("./auth/types.js").OAuthUser> {
   /** Ask the connected client's LLM to sample a completion. */
   sample(prompt: string, options?: SampleOptions): Promise<CreateMessageResult>;
   sample(
@@ -71,7 +71,7 @@ export interface ToolContext {
   sessionId?: string;
 
   /** The authenticated caller, if this server has `auth` configured and the request passed it. Only set for HTTP requests. */
-  auth?: AuthInfo;
+  auth?: AuthInfo<TUser>;
 
   /**
    * Allowlisted inbound HTTP headers from the current MCP request (HTTP transport only).
@@ -134,7 +134,10 @@ export function forwardAuthHeaders(
   return {};
 }
 
-export function buildToolContext(nativeServer: OfficialMcpServer, extra: Extra): ToolContext {
+export function buildToolContext<TUser extends import("./auth/types.js").OAuthUser = import("./auth/types.js").OAuthUser>(
+  nativeServer: OfficialMcpServer,
+  extra: Extra
+): ToolContext<TUser> {
   const progressToken = extra._meta?.progressToken;
 
   return {
@@ -197,7 +200,7 @@ export function buildToolContext(nativeServer: OfficialMcpServer, extra: Extra):
     },
 
     sessionId: extra.sessionId,
-    auth: currentAuthByServer.get(nativeServer),
+    auth: currentAuthByServer.get(nativeServer) as AuthInfo<TUser> | undefined,
     requestHeaders: currentRequestHeadersByServer.get(nativeServer),
   };
 }

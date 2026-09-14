@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
+import { createHmac } from "node:crypto";
 import { MCPServer } from "../src/server/mcp-server.js";
 import { object } from "../src/shared/response-helpers.js";
 import type { AuthInfo } from "../src/server/auth/types.js";
@@ -14,8 +15,18 @@ describe("oauth auth", () => {
   });
 
   it("401s with WWW-Authenticate + serves protected-resource metadata + accepts a valid token", async () => {
-    const verifyToken = async (token: string): Promise<AuthInfo | null> =>
-      token === "valid-jwt" ? { sub: "user-123", scopes: ["read"], claims: { sub: "user-123" } } : null;
+    const verifyToken = async (
+      token: string,
+      context: { resource: string },
+    ): Promise<AuthInfo | null> =>
+      token === "valid-jwt"
+        ? {
+            sub: "user-123",
+            scopes: ["read"],
+            claims: { sub: "user-123" },
+            resource: context.resource,
+          }
+        : null;
     const port = 34000 + Math.floor(Math.random() * 1000);
     const base = `http://localhost:${port}`;
 
@@ -27,26 +38,55 @@ describe("oauth auth", () => {
         resource: `${base}/mcp`,
         verifyToken,
         authorizationServers: ["https://auth.example.com"],
+        authorizationServerMetadata: {
+          issuer: "https://auth.example.com",
+          authorization_endpoint: "https://auth.example.com/authorize",
+          token_endpoint: "https://auth.example.com/token",
+          registration_endpoint: "https://auth.example.com/register",
+        },
       },
     });
     server.tool(
-      { name: "whoami", schema: z.object({}), outputSchema: z.object({ sub: z.string().optional() }) },
-      async (_args, ctx) => object({ sub: ctx.auth?.sub })
+      {
+        name: "whoami",
+        schema: z.object({}),
+        outputSchema: z.object({
+          sub: z.string().optional(),
+          token: z.string().optional(),
+          claimSub: z.string().optional(),
+        }),
+      },
+      async (_args, ctx) =>
+        object({
+          sub: ctx.auth?.sub,
+          token: ctx.auth?.token,
+          claimSub: ctx.auth?.claims.sub as string | undefined,
+        }),
     );
 
     await server.listen({ transport: "http", port });
 
     const noAuth = await fetch(`${base}/mcp`, {
       method: "POST",
-      headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/list",
+        params: {},
+      }),
     });
     expect(noAuth.status).toBe(401);
     expect(noAuth.headers.get("www-authenticate")).toBe(
-      `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource/mcp", error="invalid_token"`
+      `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource/mcp", error="invalid_token"`,
     );
 
-    const metadataRes = await fetch(`${base}/.well-known/oauth-protected-resource`);
+    const metadataRes = await fetch(
+      `${base}/.well-known/oauth-protected-resource`,
+    );
     expect(metadataRes.status).toBe(200);
     const metadata = (await metadataRes.json()) as {
       resource: string;
@@ -54,11 +94,24 @@ describe("oauth auth", () => {
       bearer_methods_supported: string[];
     };
     expect(metadata.resource).toBe(`${base}/mcp`);
-    expect(metadata.authorization_servers).toEqual(["https://auth.example.com"]);
+    expect(metadata.authorization_servers).toEqual([
+      "https://auth.example.com",
+    ]);
     expect(metadata.bearer_methods_supported).toEqual(["header"]);
 
-    const pathMetadataRes = await fetch(`${base}/.well-known/oauth-protected-resource/mcp`);
+    const pathMetadataRes = await fetch(
+      `${base}/.well-known/oauth-protected-resource/mcp`,
+    );
     expect(pathMetadataRes.status).toBe(200);
+
+    const authorizationMetadataRes = await fetch(
+      `${base}/.well-known/oauth-authorization-server`,
+    );
+    expect(authorizationMetadataRes.status).toBe(200);
+    await expect(authorizationMetadataRes.json()).resolves.toMatchObject({
+      issuer: "https://auth.example.com",
+      registration_endpoint: "https://auth.example.com/register",
+    });
 
     const callRes = await fetch(`${base}/mcp`, {
       method: "POST",
@@ -67,11 +120,28 @@ describe("oauth auth", () => {
         accept: "application/json, text/event-stream",
         authorization: "Bearer valid-jwt",
       },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "whoami", arguments: {} } }),
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/call",
+        params: { name: "whoami", arguments: {} },
+      }),
     });
     expect(callRes.status).toBe(200);
-    const callJson = await parseSseJson<{ result: { structuredContent: { sub?: string } } }>(callRes);
-    expect(callJson.result.structuredContent).toEqual({ sub: "user-123" });
+    const callJson = await parseSseJson<{
+      result: {
+        structuredContent: {
+          sub?: string;
+          token?: string;
+          claimSub?: string;
+        };
+      };
+    }>(callRes);
+    expect(callJson.result.structuredContent).toEqual({
+      sub: "user-123",
+      token: "valid-jwt",
+      claimSub: "user-123",
+    });
   });
 
   it("returns 403 insufficient_scope when a valid token lacks a required scope", async () => {
@@ -86,7 +156,12 @@ describe("oauth auth", () => {
         authorizationServers: ["https://auth.example.com"],
         requiredScopes: ["tools:read"],
         scopesSupported: ["tools:read"],
-        verifyToken: async () => ({ sub: "user-123", scopes: ["profile"], claims: { sub: "user-123" } }),
+        verifyToken: async (_token, context) => ({
+          sub: "user-123",
+          scopes: ["profile"],
+          claims: { sub: "user-123" },
+          resource: context.resource,
+        }),
       },
     });
 
@@ -98,14 +173,25 @@ describe("oauth auth", () => {
         accept: "application/json, text/event-stream",
         authorization: "Bearer valid-but-under-scoped",
       },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/list",
+        params: {},
+      }),
     });
 
     expect(response.status).toBe(403);
-    expect(response.headers.get("www-authenticate")).toContain('error="insufficient_scope"');
-    expect(response.headers.get("www-authenticate")).toContain('scope="tools:read"');
+    expect(response.headers.get("www-authenticate")).toContain(
+      'error="insufficient_scope"',
+    );
+    expect(response.headers.get("www-authenticate")).toContain(
+      'scope="tools:read"',
+    );
 
-    const metadata = await fetch(`${base}/.well-known/oauth-protected-resource/mcp`).then((res) => res.json());
+    const metadata = await fetch(
+      `${base}/.well-known/oauth-protected-resource/mcp`,
+    ).then((res) => res.json());
     expect(metadata.scopes_supported).toEqual(["tools:read"]);
   });
 
@@ -134,13 +220,90 @@ describe("oauth auth", () => {
         host: "attacker.example",
         "x-forwarded-proto": "https",
       },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/list",
+        params: {},
+      }),
     });
 
     expect(response.headers.get("www-authenticate")).toContain(
-      'resource_metadata="https://public.example.com/.well-known/oauth-protected-resource/mcp"'
+      'resource_metadata="https://public.example.com/.well-known/oauth-protected-resource/mcp"',
     );
     expect(verifiedResource).toBe("https://public.example.com/mcp");
+  });
+
+  it("uses a gateway-signed custom domain as the request resource", async () => {
+    const secret = "test-proxy-secret";
+    let verifiedResource: string | undefined;
+    server = new MCPServer({
+      name: "custom-domain-resource-fixture",
+      version: "1.0.0",
+      auth: {
+        type: "oauth",
+        resource: "https://canonical.example/mcp",
+        proxySecret: secret,
+        authorizationServers: ["https://auth.example.com"],
+        verifyToken: async (_token, context) => {
+          verifiedResource = context.resource;
+          return null;
+        },
+      },
+    });
+    const port = 36000 + Math.floor(Math.random() * 1000);
+    await server.listen({ transport: "http", port });
+    const signedHeaders = (method: string, path: string) => {
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      return {
+        "x-forwarded-proto": "https",
+        "x-forwarded-host": "mcp.customer.example",
+        "x-mcpfy-forwarded-timestamp": timestamp,
+        "x-mcpfy-forwarded-signature": createHmac("sha256", secret)
+          .update(`${timestamp}\n${method}\nmcp.customer.example\n${path}`)
+          .digest("base64url"),
+      };
+    };
+
+    const metadata = await fetch(
+      `http://localhost:${port}/.well-known/oauth-protected-resource/mcp`,
+      {
+        headers: signedHeaders(
+          "GET",
+          "/.well-known/oauth-protected-resource/mcp",
+        ),
+      },
+    ).then((response) => response.json());
+    expect(metadata.resource).toBe("https://mcp.customer.example/mcp");
+    const forged = await fetch(
+      `http://localhost:${port}/.well-known/oauth-protected-resource/mcp`,
+      {
+        headers: {
+          ...signedHeaders("GET", "/.well-known/oauth-protected-resource/mcp"),
+          "x-mcpfy-forwarded-signature": "forged",
+        },
+      },
+    ).then((response) => response.json());
+    expect(forged.resource).toBe("https://canonical.example/mcp");
+
+    const response = await fetch(`http://localhost:${port}/mcp`, {
+      method: "POST",
+      headers: {
+        ...signedHeaders("POST", "/mcp"),
+        "content-type": "application/json",
+        authorization: "Bearer token",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/list",
+        params: {},
+      }),
+    });
+    expect(response.headers.get("www-authenticate")).toContain(
+      'resource_metadata="https://mcp.customer.example/.well-known/oauth-protected-resource/mcp"',
+    );
+    expect(verifiedResource).toBe("https://mcp.customer.example/mcp");
   });
 
   it("rejects a malformed configured resource before accepting requests", async () => {
@@ -154,8 +317,62 @@ describe("oauth auth", () => {
         verifyToken: async () => null,
       },
     });
-    await expect(server.listen({ transport: "http", port: 0 }))
-      .rejects.toThrow("OAuth resource must be an absolute URL");
+    await expect(server.listen({ transport: "http", port: 0 })).rejects.toThrow(
+      "OAuth resource must be an absolute URL",
+    );
+  });
+
+  it("canonicalizes a trailing slash in the configured resource", async () => {
+    const port = 36500 + Math.floor(Math.random() * 400);
+    const base = `http://localhost:${port}`;
+    server = new MCPServer({
+      name: "canonical-trailing-slash-fixture",
+      version: "1.0.0",
+      auth: {
+        type: "oauth",
+        resource: `${base}/mcp/`,
+        authorizationServers: ["https://auth.example.com"],
+        verifyToken: async () => null,
+      },
+    });
+    await server.listen({ transport: "http", port });
+    const metadata = await fetch(
+      `${base}/.well-known/oauth-protected-resource/mcp`,
+    ).then((response) => response.json());
+    expect(metadata.resource).toBe(`${base}/mcp`);
+  });
+
+  it("rejects a verifier result that is not bound to the protected resource", async () => {
+    const port = 36900 + Math.floor(Math.random() * 80);
+    const base = `http://localhost:${port}`;
+    server = new MCPServer({
+      name: "unbound-verifier-fixture",
+      version: "1.0.0",
+      auth: {
+        type: "oauth",
+        resource: `${base}/mcp`,
+        authorizationServers: ["https://auth.example.com"],
+        verifyToken: async () => ({
+          sub: "user-123",
+          claims: { sub: "user-123" },
+        }),
+      },
+    });
+    await server.listen({ transport: "http", port });
+    const response = await fetch(`${base}/mcp`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: "Bearer unbound-token",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/list",
+        params: {},
+      }),
+    });
+    expect(response.status).toBe(401);
   });
 
   it("returns 500 for an unexpected verifier error and continues serving later requests", async () => {
@@ -169,21 +386,31 @@ describe("oauth auth", () => {
         authorizationServers: ["https://auth.example.com"],
         verifyToken: async () => {
           if (shouldThrow) throw new Error("identity provider unavailable");
-          return { sub: "user-123", claims: { sub: "user-123" } };
+          return {
+            sub: "user-123",
+            claims: { sub: "user-123" },
+            resource: "https://public.example.com/mcp",
+          };
         },
       },
     });
     const port = 37000 + Math.floor(Math.random() * 1000);
     await server.listen({ transport: "http", port });
-    const request = () => fetch(`http://localhost:${port}/mcp`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        accept: "application/json, text/event-stream",
-        authorization: "Bearer token",
-      },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
-    });
+    const request = () =>
+      fetch(`http://localhost:${port}/mcp`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          accept: "application/json, text/event-stream",
+          authorization: "Bearer token",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/list",
+          params: {},
+        }),
+      });
 
     expect((await request()).status).toBe(500);
     shouldThrow = false;

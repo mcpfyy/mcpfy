@@ -41,7 +41,9 @@ const brand = gradient(["#e5e5e5", "#737373", "#e5e5e5"]);
 function parsePortValue(value: string | undefined, flag: string): number {
   const n = Number(value);
   if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) {
-    console.error(`Invalid ${flag} value "${value}" — expected a non-negative integer (e.g. 3000).`);
+    console.error(
+      `Invalid ${flag} value "${value}" — expected a non-negative integer (e.g. 3000).`,
+    );
     process.exit(1);
   }
   return n;
@@ -57,7 +59,7 @@ ${color.dim("Usage:")}
 ${color.dim("Options:")}
   --stdio, --http, --transport <stdio|http>
   --auth <none|header|oauth>
-  --oauth-provider <auth0|clerk|workos|supabase|better-auth|keycloak|custom>
+  --oauth-provider <auth0|better-auth|clerk|keycloak|supabase|workos|custom>
   --port <n>              HTTP listen port (default 3000)
   --no-widget             tools/prompts/resources only (no React UI)
   --tailwind              widget UI styled with Tailwind CSS
@@ -83,24 +85,39 @@ function parseArgs(argv: string[]): ParsedArgs {
     else if (arg === "--transport") {
       const value = argv[++i];
       if (value !== "stdio" && value !== "http") {
-        console.error(`Invalid --transport value "${value}" — expected "stdio" or "http".`);
+        console.error(
+          `Invalid --transport value "${value}" — expected "stdio" or "http".`,
+        );
         process.exit(1);
       }
       args.transport = value;
     } else if (arg === "--stdio") args.transport = "stdio";
     else if (arg === "--http") args.transport = "http";
     else if (arg === "--port") args.port = parsePortValue(argv[++i], "--port");
-    else if (arg.startsWith("--port=")) args.port = parsePortValue(arg.slice("--port=".length), "--port");
+    else if (arg.startsWith("--port="))
+      args.port = parsePortValue(arg.slice("--port=".length), "--port");
     else if (arg === "--auth") {
       const value = argv[++i];
       if (value !== "none" && value !== "header" && value !== "oauth") {
-        console.error(`Invalid --auth value "${value}" — expected "none", "header", or "oauth".`);
+        console.error(
+          `Invalid --auth value "${value}" — expected "none", "header", or "oauth".`,
+        );
         process.exit(1);
       }
       args.auth = value;
     } else if (arg === "--oauth-provider") {
       const value = argv[++i];
-      if (!["auth0", "clerk", "workos", "supabase", "better-auth", "keycloak", "custom"].includes(value)) {
+      if (
+        ![
+          "auth0",
+          "better-auth",
+          "clerk",
+          "keycloak",
+          "supabase",
+          "workos",
+          "custom",
+        ].includes(value)
+      ) {
         console.error(`Invalid --oauth-provider value "${value}".`);
         process.exit(1);
       }
@@ -193,7 +210,9 @@ async function promptMissing(args: ParsedArgs): Promise<{
         );
 
   if (transport === "stdio" && auth !== "none") {
-    throw new Error(`${auth} authentication requires HTTP transport. Use --http or --auth none.`);
+    throw new Error(
+      `${auth} authentication requires HTTP transport. Use --http or --auth none.`,
+    );
   }
   if (args.oauthProvider && auth !== "oauth") {
     throw new Error("--oauth-provider requires --auth oauth");
@@ -215,29 +234,29 @@ async function promptMissing(args: ParsedArgs): Promise<{
                     hint: "requires AUTH0_DOMAIN",
                   },
                   {
-                    value: "clerk" as const,
-                    label: "Clerk",
-                    hint: "requires CLERK_DOMAIN + CLERK_SECRET_KEY",
-                  },
-                  {
-                    value: "workos" as const,
-                    label: "WorkOS",
-                    hint: "requires WORKOS_AUTHKIT_DOMAIN",
-                  },
-                  {
-                    value: "supabase" as const,
-                    label: "Supabase",
-                    hint: "requires SUPABASE_URL",
-                  },
-                  {
                     value: "better-auth" as const,
                     label: "Better Auth",
                     hint: "requires BETTER_AUTH_URL",
                   },
                   {
+                    value: "clerk" as const,
+                    label: "Clerk",
+                    hint: "requires CLERK_DOMAIN; audience optional",
+                  },
+                  {
                     value: "keycloak" as const,
                     label: "Keycloak",
-                    hint: "requires KEYCLOAK_SERVER_URL + KEYCLOAK_REALM",
+                    hint: "requires server URL + realm",
+                  },
+                  {
+                    value: "supabase" as const,
+                    label: "Supabase",
+                    hint: "requires SUPABASE_URL; audience defaults to authenticated",
+                  },
+                  {
+                    value: "workos" as const,
+                    label: "WorkOS",
+                    hint: "requires WORKOS_AUTHKIT_DOMAIN; audience optional",
                   },
                   {
                     value: "custom" as const,
@@ -309,7 +328,11 @@ async function main(): Promise<void> {
   console.log(brand.multiline(BANNER));
   console.log();
   p.intro(color.bold("Create an MCP server"));
-  p.log.message(color.dim("React widget by default. Pass --no-widget for tools/prompts/resources only."));
+  p.log.message(
+    color.dim(
+      "React widget by default. Pass --no-widget for tools/prompts/resources only.",
+    ),
+  );
 
   const answers = await promptMissing(args);
   const targetDir = resolve(process.cwd(), answers.name);
@@ -320,7 +343,9 @@ async function main(): Promise<void> {
     `${color.dim("name")}      ${color.bold(projectName)}`,
     `${color.dim("transport")} ${answers.transport}${answers.transport === "http" ? `:${answers.port}` : ""}`,
     `${color.dim("auth")}      ${answers.auth}`,
-    ...(answers.oauthProvider ? [`${color.dim("provider")}  ${answers.oauthProvider}`] : []),
+    ...(answers.oauthProvider
+      ? [`${color.dim("provider")}  ${answers.oauthProvider}`]
+      : []),
     `${color.dim("widget")}    ${answers.widget ? color.magenta(answers.tailwind ? "React + Tailwind" : "React UI") : color.dim("none")}`,
   ].join("\n");
   p.note(summary, "Plan");

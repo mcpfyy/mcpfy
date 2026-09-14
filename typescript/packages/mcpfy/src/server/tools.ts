@@ -7,18 +7,21 @@ import { attachWidgetProtocols } from "./widgets/attach.js";
 import { buildMcpUiContentBlock } from "./widgets/mcp-ui-adapter.js";
 import { registerToolWidget, widgetContentGetter } from "./widgets/registry.js";
 import type { WidgetCsp, WidgetOptions } from "./widgets/types.js";
+import type { OAuthUser } from "./auth/types.js";
 
 export type ToolCallback<
   TInput = Record<string, any>,
   TOutput extends Record<string, unknown> = Record<string, unknown>,
+  TUser extends OAuthUser = OAuthUser,
 > = (
   params: TInput,
-  ctx: ToolContext
+  ctx: ToolContext<TUser>
 ) => Promise<TypedCallToolResult<TOutput> | ToolContentResult>;
 
 export interface ToolDefinition<
   TInput = Record<string, any>,
   TOutput extends Record<string, unknown> = Record<string, unknown>,
+  TUser extends OAuthUser = OAuthUser,
 > {
   name: string;
   title?: string;
@@ -33,7 +36,7 @@ export interface ToolDefinition<
    * Omit for a normal tool with no UI.
    */
   widget?: string | WidgetOptions;
-  cb?: ToolCallback<TInput, TOutput>;
+  cb?: ToolCallback<TInput, TOutput, TUser>;
 }
 
 function toCallToolResult(result: TypedCallToolResult<any> | ToolContentResult): CallToolResult {
@@ -55,10 +58,11 @@ function withMcpUiResource(
 export function registerTool<
   TInput = Record<string, any>,
   TOutput extends Record<string, unknown> = Record<string, unknown>,
+  TUser extends OAuthUser = OAuthUser,
 >(
   nativeServer: OfficialMcpServer,
-  def: ToolDefinition<TInput, TOutput>,
-  cb?: ToolCallback<TInput, TOutput>
+  def: ToolDefinition<TInput, TOutput, TUser>,
+  cb?: ToolCallback<TInput, TOutput, TUser>
 ): void {
   const callback = cb ?? def.cb;
   if (!callback) {
@@ -97,7 +101,7 @@ export function registerTool<
       _meta: toolMeta,
     },
     async (params: any, extra: any) => {
-      const ctx = buildToolContext(nativeServer, extra);
+      const ctx = buildToolContext<TUser>(nativeServer, extra);
       const result = toCallToolResult(await callback(params, ctx));
       return appendMcpUi ? appendMcpUi(result) : result;
     }
