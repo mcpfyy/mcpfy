@@ -1,0 +1,23 @@
+{
+  "name": "{{PROJECT_NAME}}",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An MCP server built with mcpfy.",
+  "scripts": {
+    "dev": "tsx --env-file-if-exists=.env src/server.ts{{DEV_PORT_ARGS}}",
+    "dev:stdio": "tsx --env-file-if-exists=.env src/server.ts --stdio",
+    "dev:http": "tsx --env-file-if-exists=.env src/server.ts --http --port {{DEFAULT_PORT}}",
+    "build": "tsc",
+    "start": "node --env-file-if-exists=.env dist/server.js"
+  },
+  "dependencies": {
+    "mcpfy-sdk": "{{MCPFY_SDK}}",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}
