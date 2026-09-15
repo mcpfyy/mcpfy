@@ -97,6 +97,8 @@ interface MCPServerConfig {
 
 ## Require OAuth sign-in
 
+For provider-dashboard setup instructions, see [DOCUMENT.md](./DOCUMENT.md).
+
 OAuth protects the HTTP MCP endpoint before tools, resources, or prompts can be used. Provider helpers configure discovery, bearer-token verification, resource binding, scopes, and `ctx.auth` together.
 
 Use a provider-native field for an external identity provider:
@@ -115,7 +117,9 @@ const server = new MCPServer({
 
 Available configurations are `oauth.auth0`, `oauth.clerk`, `oauth.workos`, `oauth.supabase`, `oauth.betterAuth`, `oauth.keycloak`, `oauth.jwt`, and `oauth.custom`. Set `MCP_URL` to the exact canonical public MCP endpoint. OAuth configuration fails fast when it is missing. Legacy `MCPFY_MCP_URL` and `MCPFY_URL` values are still read for compatibility.
 
-`oauth.clerk` uses Clerk's token-type-aware backend verifier so Clerk session tokens cannot be confused with OAuth access tokens. Set `CLERK_SECRET_KEY` on the server; JWT and opaque Clerk OAuth tokens are both supported. Never expose this secret to a browser or MCP client.
+On MCPfy-hosted deployments, `MCPFY_PROXY_SECRET` is injected automatically. The gateway signs the public request origin so OAuth discovery and token verification use the custom domain through which the client connected. Self-hosted servers continue to use only `MCP_URL` unless they explicitly configure the same signed-proxy contract.
+
+`oauth.clerk` verifies JWT OAuth access tokens from Clerk's JWKS. Set an optional `audience` when Clerk emits one.
 
 Provider helpers require a valid access token but do not require any scopes by default. Add `requiredScopes` only after configuring the same scopes in your authorization provider:
 
@@ -132,10 +136,14 @@ Authenticated handlers receive normalized and raw verified identity:
 server.tool({ name: "whoami", schema: z.object({}) }, async (_input, ctx) =>
   object({
     userId: ctx.auth?.user?.id,
+    roles: ctx.auth?.user?.roles, // inferred for Auth0 from the server config
     scopes: ctx.auth?.scopes ?? [],
+    claims: ctx.auth?.claims,
   }),
 );
 ```
+
+Each provider exposes a typed user shape based on its verified claims. For example, Auth0 includes roles and profile fields; WorkOS includes organization and session fields; Supabase includes role, AAL, AMR, and user metadata; Better Auth includes session and anonymous-user fields; Keycloak includes realm/resource access; and Clerk exposes available profile and organization claims.
 
 OAuth applies only to HTTP transport. Stdio authentication remains the responsibility of the local process environment.
 

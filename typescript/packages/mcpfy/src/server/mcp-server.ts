@@ -15,7 +15,7 @@ import { registerWidget, type UIResourceDefinition, type WidgetCallback } from "
 import { configureWidgetRegistry } from "./widgets/registry.js";
 import { prepareRegisteredWidgets } from "./widgets/prepare.js";
 import { DEFAULT_WIDGETS_DIR } from "./widgets/types.js";
-import type { AuthConfig } from "./auth/types.js";
+import type { AuthConfig, OAuthUser } from "./auth/types.js";
 import { refreshPrompts, refreshResource, refreshResources, refreshTools } from "./refresh.js";
 import { enableResourceSubscriptions } from "./subscriptions.js";
 import { mountRemote, type RemoteServerConfig } from "./mount-remote.js";
@@ -23,7 +23,7 @@ import type { HttpConnector } from "../client/connectors.js";
 
 export type { ServerIcon } from "./icon.js";
 
-export interface MCPServerConfig {
+export interface MCPServerConfig<TUser extends OAuthUser = OAuthUser> {
   name: string;
   version: string;
   description?: string;
@@ -39,7 +39,7 @@ export interface MCPServerConfig {
    */
   icon?: string | ServerIcon;
   /** Require callers to authenticate — e.g. `oauth.auth0({ domain })`. HTTP only. */
-  auth?: AuthConfig;
+  auth?: AuthConfig<TUser>;
   /** Root for `tool({ widget: "name" })` folders. Defaults to `src/widgets`. */
   widgetsDir?: string;
 }
@@ -97,15 +97,15 @@ function resolveHttpPort(explicit?: number): number {
   return 3000;
 }
 
-export class MCPServer {
+export class MCPServer<TUser extends OAuthUser = OAuthUser> {
   /** The underlying `@modelcontextprotocol/sdk` McpServer instance, for advanced/escape-hatch use. */
   public readonly nativeServer: OfficialMcpServer;
-  public readonly config: MCPServerConfig;
+  public readonly config: MCPServerConfig<TUser>;
 
   private httpHandle?: HttpHandle;
   private remotes: HttpConnector[] = [];
 
-  constructor(config: MCPServerConfig) {
+  constructor(config: MCPServerConfig<TUser>) {
     this.config = config;
     this.nativeServer = new OfficialMcpServer(
       { name: config.name, version: config.version, title: config.name, icons: resolveServerIcons(config.icon) },
@@ -127,8 +127,8 @@ export class MCPServer {
   }
 
   tool<TInput = Record<string, any>, TOutput extends Record<string, unknown> = Record<string, unknown>>(
-    def: ToolDefinition<TInput, TOutput>,
-    cb?: ToolCallback<TInput, TOutput>
+    def: ToolDefinition<TInput, TOutput, TUser>,
+    cb?: ToolCallback<TInput, TOutput, TUser>
   ): this {
     registerTool(this.nativeServer, def, cb);
     return this;

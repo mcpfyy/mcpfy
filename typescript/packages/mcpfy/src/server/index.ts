@@ -27,9 +27,18 @@ export { setWidgetHtmlForTest } from "./widgets/index.js";
 export { text, markdown, image, object, error } from "../shared/response-helpers.js";
 export type { ToolContentResult, TypedCallToolResult } from "../shared/response-helpers.js";
 
-export type { AuthConfig, AuthInfo, OAuthUser, OAuthTokenVerifier, OAuthVerificationContext } from "./auth/types.js";
+export type { AuthConfig, AuthInfo, OAuthAuthorizationServerMetadata, OAuthUser, OAuthTokenVerifier, OAuthVerificationContext } from "./auth/types.js";
 export { jwksVerifier, type JwksVerifierOptions } from "./auth/jwks-verifier.js";
 export { oauth } from "./auth/providers.js";
+export type {
+  Auth0OAuthUser,
+  BetterAuthOAuthUser,
+  ClerkOAuthUser,
+  KeycloakOAuthUser,
+  SupabaseAmr,
+  SupabaseOAuthUser,
+  WorkOSOAuthUser,
+} from "./auth/providers.js";
 export type {
   Auth0OAuthOptions,
   BetterAuthOAuthOptions,

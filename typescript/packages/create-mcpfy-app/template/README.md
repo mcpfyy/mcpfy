@@ -13,26 +13,13 @@ npm run dev:http -- --port 8080   # override port for one run
 PORT=8080 npm run dev:http        # or via env
 ```
 
-On HTTP start the SDK prints the local MCP URL, e.g. `MCP server listening on http://localhost:{{DEFAULT_PORT}}/mcp  (port {{DEFAULT_PORT}})`.
+On HTTP start the SDK prints the local MCP URL, e.g. `MCP server listening on http://localhost:{{DEFAULT_PORT}}/hello  (port {{DEFAULT_PORT}})`.
 
 {{AUTH_SETUP}}
 
 ## Use it in an MCP host
 
-Most hosts (Claude Desktop, Claude Code, Cursor, etc.) launch servers over stdio — point your
-host's MCP config at this project with the `--stdio` flag so it works regardless of this
-project's default:
-
-```json
-{
-  "mcpServers": {
-    "{{PROJECT_NAME}}": {
-      "command": "npx",
-      "args": ["tsx", "/absolute/path/to/src/server.ts", "--stdio"]
-    }
-  }
-}
-```
+{{HOST_CONNECTION}}
 
 ## Next steps
 

@@ -4,9 +4,19 @@
  * No LLM — pure template expansion.
  */
 
-import { AUTH_CONFIGS, AUTH_IMPORTS, type Auth, type Transport, toPackageName } from "./scaffold.js";
+import {
+  AUTH_CONFIGS,
+  AUTH_IMPORTS,
+  OAUTH_CONFIGS,
+  OAUTH_ENV,
+  OAUTH_USER_INFO_TOOL,
+  type Auth,
+  type OAuthProvider,
+  type Transport,
+  toPackageName,
+} from "./scaffold.js";
 
-export type { Auth, Transport };
+export type { Auth, OAuthProvider, Transport };
 
 export interface ExportParamSpec {
   type?: string;
@@ -42,7 +52,12 @@ export interface ExportPromptSpec {
   messages: Array<{ role: "user" | "assistant"; content: string }>;
 }
 
-export type OutboundAuthType = "none" | "bearer" | "apikey" | "basic" | "custom";
+export type OutboundAuthType =
+  | "none"
+  | "bearer"
+  | "apikey"
+  | "basic"
+  | "custom";
 
 export interface ExportAuthSpec {
   type?: OutboundAuthType;
@@ -58,6 +73,7 @@ export interface GenerateProjectOptions {
   transport?: Transport;
   /** MCP listener auth (who may call this server). */
   serverAuth?: Auth;
+  oauthProvider?: OAuthProvider;
   /** Outbound HTTP auth for tool fetch calls. */
   authSpec?: ExportAuthSpec | null;
   tools?: ExportToolSpec[];
@@ -78,7 +94,7 @@ const PACKAGE_JSON = `{
     "start": "node dist/server.js"
   },
   "dependencies": {
-    "mcpfy-sdk": "^0.3.0",
+    "mcpfy-sdk": "^0.3.1",
     "zod": "^3.25.0"
   },
   "devDependencies": {
@@ -110,7 +126,10 @@ dist/
 `;
 
 function escapeTsString(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/`/g, "\\`")
+    .replace(/\$\{/g, "\\${");
 }
 
 function sanitizeIdent(name: string): string {
@@ -145,15 +164,19 @@ function zodTypeExpr(param: ExportParamSpec): string {
   return base;
 }
 
-function buildZodObject(fields: Record<string, ExportParamSpec> | undefined): string {
+function buildZodObject(
+  fields: Record<string, ExportParamSpec> | undefined,
+): string {
   if (!fields || Object.keys(fields).length === 0) return "z.object({})";
   const lines = Object.entries(fields).map(
-    ([name, spec]) => `    ${JSON.stringify(name)}: ${zodTypeExpr(spec)},`
+    ([name, spec]) => `    ${JSON.stringify(name)}: ${zodTypeExpr(spec)},`,
   );
   return `z.object({\n${lines.join("\n")}\n  })`;
 }
 
-function collectSchemaFields(request: ExportToolSpec["request"]): Record<string, ExportParamSpec> {
+function collectSchemaFields(
+  request: ExportToolSpec["request"],
+): Record<string, ExportParamSpec> {
   return {
     ...(request.pathParams || {}),
     ...(request.queryParams || {}),
@@ -325,10 +348,16 @@ function emitToolRegistration(tool: ExportToolSpec): string {
   const schemaFields = collectSchemaFields(tool.request);
   const schema = buildZodObject(schemaFields);
   const method = (tool.request.type || "get").toLowerCase();
-  const hasTransformer = Boolean(tool.responseTransformer?.enabled && tool.responseTransformer?.code);
+  const hasTransformer = Boolean(
+    tool.responseTransformer?.enabled && tool.responseTransformer?.code,
+  );
 
   const pathParamsLit = JSON.stringify(tool.request.pathParams || {}, null, 2);
-  const queryParamsLit = JSON.stringify(tool.request.queryParams || {}, null, 2);
+  const queryParamsLit = JSON.stringify(
+    tool.request.queryParams || {},
+    null,
+    2,
+  );
   const bodyInputLit = JSON.stringify(tool.request.bodyInput || {}, null, 2);
   const headersLit = JSON.stringify(tool.request.headers || {}, null, 2);
 
@@ -369,7 +398,8 @@ function emitPromptRegistration(prompt: ExportPromptSpec): string {
       : `z.object({\n${args
           .map((a) => {
             let field = "z.string()";
-            if (a.description) field += `.describe(${JSON.stringify(a.description)})`;
+            if (a.description)
+              field += `.describe(${JSON.stringify(a.description)})`;
             if (a.required === false) field += ".optional()";
             return `    ${JSON.stringify(a.name)}: ${field},`;
           })
@@ -402,7 +432,11 @@ server.prompt(
 `;
 }
 
-function buildEnvExample(authSpec?: ExportAuthSpec | null, serverAuth?: Auth): string {
+function buildEnvExample(
+  authSpec?: ExportAuthSpec | null,
+  serverAuth?: Auth,
+  oauthProvider: OAuthProvider = "custom",
+): string {
   const lines = [
     "# Copy to .env and fill in values (optional if the MCP client sends auth headers)",
     "# Prefer: pass Authorization / x-api-key / x-auth-token on the MCP HTTP connection",
@@ -414,10 +448,12 @@ function buildEnvExample(authSpec?: ExportAuthSpec | null, serverAuth?: Auth): s
     lines.push("API_KEY=change-me");
     lines.push("");
   } else if (serverAuth === "oauth") {
-    lines.push("# Protects the MCP HTTP endpoint with OAuth");
-    lines.push("OAUTH_ISSUER=https://your-issuer.example.com");
-    lines.push("OAUTH_JWKS_URL=https://your-issuer.example.com/.well-known/jwks.json");
-    lines.push("MCP_URL=http://localhost:3000/mcp");
+    lines.push(
+      OAUTH_ENV[oauthProvider]
+        .trim()
+        .replaceAll("{{OAUTH_PORT}}", "3000")
+        .replaceAll("{{OAUTH_PATH}}", "/mcp"),
+    );
     lines.push("");
   }
   const type = authSpec?.type || "none";
@@ -443,7 +479,7 @@ function buildReadme(
   projectName: string,
   transport: Transport,
   toolCount: number,
-  promptCount: number
+  promptCount: number,
 ): string {
   return `# ${projectName}
 
@@ -492,11 +528,15 @@ Env vars in \`.env\` are only a fallback when the MCP request has no auth header
  * Generate a complete mcpfy-sdk project as path → file contents.
  * Paths use forward slashes; `.gitignore` is the final name (not `gitignore`).
  */
-export function generateProjectFiles(options: GenerateProjectOptions): Record<string, string> {
+export function generateProjectFiles(
+  options: GenerateProjectOptions,
+): Record<string, string> {
   const projectName = toPackageName(options.projectName);
   const transport: Transport = options.transport || "http";
   const serverAuth: Auth = options.serverAuth || "none";
-  const description = options.description || `Self-hosted MCP server for ${projectName}`;
+  const oauthProvider: OAuthProvider = options.oauthProvider || "custom";
+  const description =
+    options.description || `Self-hosted MCP server for ${projectName}`;
   const tools = options.tools || [];
   const prompts = options.prompts || [];
 
@@ -504,13 +544,13 @@ export function generateProjectFiles(options: GenerateProjectOptions): Record<st
   const toolBlocks = tools.map(emitToolRegistration).join("\n");
   const promptBlocks = prompts.map(emitPromptRegistration).join("\n");
 
-  const serverTs = `import { MCPServer, text, forwardAuthHeaders, type ToolContext${AUTH_IMPORTS[serverAuth]} } from "mcpfy-sdk/server";
+  const serverTs = `import { MCPServer, text${serverAuth === "oauth" ? ", object" : ""}, forwardAuthHeaders, type ToolContext${AUTH_IMPORTS[serverAuth]} } from "mcpfy-sdk/server";
 import { z } from "zod";
 
 const server = new MCPServer({
   name: ${JSON.stringify(projectName)},
   version: "1.0.0",
-  description: ${JSON.stringify(description)},${AUTH_CONFIGS[serverAuth]}
+  description: ${JSON.stringify(description)},${serverAuth === "oauth" ? OAUTH_CONFIGS[oauthProvider] : AUTH_CONFIGS[serverAuth]}
 });
 
 ${emitOutboundAuthHelper(options.authSpec)}
@@ -518,6 +558,7 @@ ${emitHttpHelpers()}
 ${transformers}
 ${toolBlocks}
 ${promptBlocks}
+${serverAuth === "oauth" ? OAUTH_USER_INFO_TOOL : ""}
 // Defaults to the transport chosen at export time (${transport}); pass --http or
 // --stdio to override for a single run without touching this file.
 const transport = process.argv.includes("--http")
@@ -530,14 +571,23 @@ await server.listen(transport === "http" ? { transport: "http" } : { transport: 
 `;
 
   return {
-    "package.json": PACKAGE_JSON.replace("{{PROJECT_NAME}}", projectName).replace(
-      "{{DESCRIPTION}}",
-      description.replace(/"/g, '\\"')
-    ),
+    "package.json": PACKAGE_JSON.replace(
+      "{{PROJECT_NAME}}",
+      projectName,
+    ).replace("{{DESCRIPTION}}", description.replace(/"/g, '\\"')),
     "tsconfig.json": TSCONFIG,
     ".gitignore": GITIGNORE,
-    ".env.example": buildEnvExample(options.authSpec, serverAuth),
-    "README.md": buildReadme(projectName, transport, tools.length, prompts.length),
+    ".env.example": buildEnvExample(
+      options.authSpec,
+      serverAuth,
+      oauthProvider,
+    ),
+    "README.md": buildReadme(
+      projectName,
+      transport,
+      tools.length,
+      prompts.length,
+    ),
     "src/server.ts": serverTs,
   };
 }

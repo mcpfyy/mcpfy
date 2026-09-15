@@ -30,17 +30,7 @@ npm start
 
 ## Use it in an MCP host
 
-```json
-{
-  "mcpServers": {
-    "{{PROJECT_NAME}}": {
-      "command": "npx",
-      "args": ["mcpfy", "dev", "--", "--stdio"],
-      "cwd": "/absolute/path/to/this-project"
-    }
-  }
-}
-```
+{{HOST_CONNECTION}}
 
 ## Next steps
 

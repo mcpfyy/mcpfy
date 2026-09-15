@@ -6,7 +6,7 @@ export interface OAuthUser {
 }
 
 /** What a successful auth check resolves to a request; exposed to handlers as `ctx.auth`. */
-export interface AuthInfo {
+export interface AuthInfo<TUser extends OAuthUser = OAuthUser> {
   /** The token subject (`sub` claim, for OAuth) — the authenticated user/client identifier, if known. */
   sub?: string;
   /** Space-delimited `scope` claim, split into an array. */
@@ -16,7 +16,7 @@ export interface AuthInfo {
   /** Raw bearer token from `Authorization`, when available — useful for forwarding to upstream APIs. */
   token?: string;
   /** Normalized identity supplied by a provider helper. */
-  user?: OAuthUser;
+  user?: TUser;
   /** Verified application permissions, when the provider exposes them. */
   permissions?: string[];
   /** Token expiry as a Unix timestamp in seconds. */
@@ -34,12 +34,26 @@ export interface OAuthVerificationContext {
   requiredScopes: string[];
 }
 
-export type OAuthTokenVerifier = (
-  token: string,
-  context: OAuthVerificationContext
-) => Promise<AuthInfo | null>;
+/** RFC 8414/OIDC authorization-server metadata exposed for MCP client discovery. */
+export interface OAuthAuthorizationServerMetadata {
+  issuer: string;
+  authorization_endpoint?: string;
+  token_endpoint?: string;
+  registration_endpoint?: string;
+  jwks_uri?: string;
+  response_types_supported?: string[];
+  grant_types_supported?: string[];
+  code_challenge_methods_supported?: string[];
+  scopes_supported?: string[];
+  [key: string]: unknown;
+}
 
-export type AuthConfig =
+export type OAuthTokenVerifier<TUser extends OAuthUser = OAuthUser> = (
+  token: string,
+  context: OAuthVerificationContext,
+) => Promise<AuthInfo<TUser> | null>;
+
+export type AuthConfig<TUser extends OAuthUser = OAuthUser> =
   | {
       type: "header";
       /** Return `true` to accept the bearer token, `false`/throw to reject. */
@@ -48,11 +62,15 @@ export type AuthConfig =
   | {
       type: "oauth";
       /** Return `AuthInfo` to accept the bearer token, `null` to reject. */
-      verifyToken: OAuthTokenVerifier;
+      verifyToken: OAuthTokenVerifier<TUser>;
       /** Authorization server issuer URL(s) advertised in `.well-known/oauth-protected-resource`. */
       authorizationServers: string[];
+      /** Provider metadata mirrored at `/.well-known/oauth-authorization-server` when available. */
+      authorizationServerMetadata?: OAuthAuthorizationServerMetadata;
       /** Canonical public MCP endpoint URL advertised in metadata and used for token audience validation. */
       resource: string;
+      /** Shared secret used to trust a gateway-signed public request origin. */
+      proxySecret?: string;
       /** Scopes every authenticated HTTP request must contain. */
       requiredScopes?: string[];
       /** Scopes advertised in protected-resource metadata. */

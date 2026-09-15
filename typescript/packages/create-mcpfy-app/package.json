@@ -29,7 +29,8 @@
   },
   "scripts": {
     "build": "rimraf dist && tsup && node scripts/copy-templates.mjs",
-    "dev": "tsx src/bin.ts"
+    "dev": "tsx src/bin.ts",
+    "test": "tsx scripts/check-oauth-scaffolds.ts"
   },
   "devDependencies": {
     "@types/gradient-string": "^1.1.6",

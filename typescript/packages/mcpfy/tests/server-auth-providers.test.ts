@@ -1,18 +1,11 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { oauth } from "../src/server/auth/providers.js";
+import { MCPServer } from "../src/server/mcp-server.js";
 
 const ORIGINAL_ENV = { ...process.env };
 
-const clerkVerifyOAuthToken = vi.hoisted(() => vi.fn());
-vi.mock("@clerk/backend", () => ({
-  createClerkClient: () => ({
-    idPOAuthAccessToken: { verify: clerkVerifyOAuthToken },
-  }),
-}));
-
 afterEach(() => {
   process.env = { ...ORIGINAL_ENV };
-  clerkVerifyOAuthToken.mockReset();
 });
 
 describe("OAuth provider helpers", () => {
@@ -27,6 +20,11 @@ describe("OAuth provider helpers", () => {
     expect(auth.authorizationServers).toEqual(["https://tenant.us.auth0.com/"]);
     expect(auth.resource).toBe("https://tools.example.com/mcp");
     expect(auth.requiredScopes).toEqual(["tools:read"]);
+    expect(auth.authorizationServerMetadata).toMatchObject({
+      issuer: "https://tenant.us.auth0.com/",
+      authorization_endpoint: "https://tenant.us.auth0.com/authorize",
+      registration_endpoint: "https://tenant.us.auth0.com/oidc/register",
+    });
     expect(typeof auth.verifyToken).toBe("function");
   });
 
@@ -34,7 +32,6 @@ describe("OAuth provider helpers", () => {
     expect(
       oauth.clerk({
         domain: "app.clerk.accounts.dev",
-        secretKey: "sk_test_example",
         resource: "https://tools.example.com/mcp",
       }).authorizationServers,
     ).toEqual(["https://app.clerk.accounts.dev"]);
@@ -88,6 +85,21 @@ describe("OAuth provider helpers", () => {
         resource: "https://tools.example.com/mcp",
       }),
     ).toThrow("realm is invalid");
+    expect(() =>
+      oauth.auth0({
+        domain: "tenant.us.auth0.com",
+        audience: " ",
+        resource: "https://tools.example.com/mcp",
+      }),
+    ).toThrow("audience must be non-empty");
+    expect(() =>
+      oauth.keycloak({
+        serverUrl: "https://identity.example.com",
+        realm: "production",
+        audience: " ",
+        resource: "https://tools.example.com/mcp",
+      }),
+    ).toThrow("audience must be non-empty");
   });
 
   it("rejects an insecure remote authorization server", () => {
@@ -116,7 +128,6 @@ describe("OAuth provider helpers", () => {
     expect(() =>
       oauth.clerk({
         domain: "app.clerk.accounts.dev/path",
-        secretKey: "sk_test_example",
         resource: "https://tools.example.com/mcp",
       }),
     ).toThrow("must be an origin");
@@ -126,68 +137,35 @@ describe("OAuth provider helpers", () => {
     delete process.env.MCPFY_MCP_URL;
     delete process.env.MCPFY_URL;
     delete process.env.MCP_URL;
-    expect(() => oauth.auth0({ domain: "tenant.us.auth0.com" })).toThrow("OAuth resource is required");
+    expect(() => oauth.auth0({ domain: "tenant.us.auth0.com" })).toThrow(
+      "OAuth resource is required",
+    );
   });
 
-  it("accepts only tokens Clerk identifies as OAuth access tokens", async () => {
-    clerkVerifyOAuthToken.mockResolvedValue({
-      subject: "user_123",
-      scopes: ["tools:read"],
-      clientId: "client_123",
-      revoked: false,
-      expired: false,
-    });
+  it("configures Clerk JWKS verification", () => {
     const auth = oauth.clerk({
       domain: "app.clerk.accounts.dev",
-      secretKey: "sk_test_example",
       resource: "https://tools.example.com/mcp",
     });
-    await expect(
-      auth.verifyToken("oauth-token", {
-        resource: auth.resource,
-        requiredScopes: [],
-      }),
-    ).resolves.toMatchObject({
-      sub: "user_123",
-      scopes: ["tools:read"],
-      clientId: "client_123",
+    expect(auth.authorizationServerMetadata).toMatchObject({
+      issuer: "https://app.clerk.accounts.dev",
+      registration_endpoint: "https://app.clerk.accounts.dev/oauth/register",
     });
-    expect(clerkVerifyOAuthToken).toHaveBeenCalledWith("oauth-token");
+    expect(typeof auth.verifyToken).toBe("function");
   });
 
-  it("rejects Clerk session tokens", async () => {
-    clerkVerifyOAuthToken.mockRejectedValue(new Error("OAuth token not found"));
-    const auth = oauth.clerk({
-      domain: "app.clerk.accounts.dev",
-      secretKey: "sk_test_example",
-      resource: "https://tools.example.com/mcp",
-    });
-    await expect(
-      auth.verifyToken("session-token", {
-        resource: auth.resource,
-        requiredScopes: [],
+  it("infers provider-specific users in tool callbacks", () => {
+    const server = new MCPServer({
+      name: "typed-auth",
+      version: "1.0.0",
+      auth: oauth.auth0({
+        domain: "tenant.us.auth0.com",
+        resource: "https://tools.example.com/mcp",
       }),
-    ).resolves.toBeNull();
-  });
-
-  it("rejects expired or revoked Clerk OAuth tokens", async () => {
-    clerkVerifyOAuthToken.mockResolvedValue({
-      subject: "user_123",
-      scopes: [],
-      clientId: "client_123",
-      revoked: false,
-      expired: true,
     });
-    const auth = oauth.clerk({
-      domain: "app.clerk.accounts.dev",
-      secretKey: "sk_test_example",
-      resource: "https://tools.example.com/mcp",
+    server.tool({ name: "whoami" }, async (_params, ctx) => {
+      const roles: string[] | undefined = ctx.auth?.user?.roles;
+      return { content: [{ type: "text", text: String(roles?.length ?? 0) }] };
     });
-    await expect(
-      auth.verifyToken("expired-token", {
-        resource: auth.resource,
-        requiredScopes: [],
-      }),
-    ).resolves.toBeNull();
   });
 });

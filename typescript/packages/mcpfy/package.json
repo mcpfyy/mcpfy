@@ -68,6 +68,7 @@
   "files": [
     "dist",
     "README.md",
+    "DOCUMENT.md",
     "LICENSE"
   ],
   "publishConfig": {
@@ -92,7 +93,6 @@
     }
   },
   "dependencies": {
-    "@clerk/backend": "^3.17.2",
     "@mcp-ui/server": "^6.1.0",
     "@modelcontextprotocol/ext-apps": "^1.7.5",
     "@modelcontextprotocol/sdk": "^1.30.0",

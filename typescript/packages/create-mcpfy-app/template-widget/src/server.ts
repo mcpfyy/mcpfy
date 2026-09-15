@@ -10,6 +10,7 @@ const server = new MCPServer({
   // Shown to MCP clients. Remote URL, data: URI, or a local file path (e.g. "./src/icon.svg" or "file:///abs/path/icon.png")
   icon: "https://mcpfy.ai/images/mcpfy-fav-icon-min.png",{{AUTH_CONFIG}}
 });
+{{AUTH_TOOL}}
 
 server.tool(
   {

@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "pnpm --filter mcpfy-sdk build && pnpm --filter create-mcpfy-app build",
-    "test": "pnpm --filter mcpfy-sdk test"
+    "test": "pnpm --filter mcpfy-sdk test && pnpm --filter create-mcpfy-app test"
   },
   "pnpm": {
     "overrides": {
