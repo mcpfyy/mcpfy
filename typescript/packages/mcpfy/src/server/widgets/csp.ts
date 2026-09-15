@@ -13,14 +13,14 @@ function originFromUrl(value: string): string | undefined {
 }
 
 /**
- * Public origins the widget iframe may call (`MCPFY_URL`, then `MCP_URL`).
+ * Public origins the widget iframe may call (`MCP_URL`; legacy MCPFY URL variables are also read).
  * Set these to the HTTPS origin clients use (ngrok, production), not 127.0.0.1.
  */
 export function widgetPublicOrigins(
   env: NodeJS.ProcessEnv = process.env
 ): string[] {
   const origins: string[] = [];
-  for (const key of ["MCPFY_URL", "MCP_URL"] as const) {
+  for (const key of ["MCP_URL", "MCPFY_MCP_URL", "MCPFY_URL"] as const) {
     const raw = env[key];
     if (!raw) continue;
     const origin = originFromUrl(raw);
@@ -31,7 +31,7 @@ export function widgetPublicOrigins(
 
 /**
  * Merge author CSP with the server's public origin. Omits CSP entirely when
- * neither the author nor `MCPFY_URL`/`MCP_URL` declared any domains — hosts
+ * neither the author nor a canonical MCP URL variable declared any domains — hosts
  * stay permissive for inline HTML/JS.
  */
 export function mergeWidgetCsp(

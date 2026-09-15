@@ -12,7 +12,7 @@ Supports both **stdio** and **HTTP** transports for servers and clients, plus in
 
 - 🚀 Build an MCP server with just a few lines of code
 - 🧩 Tools, prompts, resources and widgets from one SDK
-- 🌐 HTTP  and Stdio transports built in
+- 🌐 HTTP and Stdio transports built in
 - 🎨 One widget API that works across all major MCP UI protocols
 - 🔓 Full access to the underlying official SDK whenever you need it
 - 📦 Tiny API surface with minimal abstractions
@@ -47,7 +47,7 @@ server.tool(
     schema: z.object({ a: z.number(), b: z.number() }),
     outputSchema: z.object({ sum: z.number() }),
   },
-  async ({ a, b }) => object({ sum: a + b })
+  async ({ a, b }) => object({ sum: a + b }),
 );
 
 await server.listen();
@@ -86,14 +86,58 @@ interface MCPServerConfig {
   name: string;
   version: string;
   description?: string;
-  basePath?: string;   // HTTP pathname, default /mcp
-  icon?: string | ServerIcon;  // URL, data: URI, or local path (./icon.png)
+  basePath?: string; // HTTP pathname, default /mcp
+  icon?: string | ServerIcon; // URL, data: URI, or local path (./icon.png)
   widgetsDir?: string; // default src/widgets
-  auth?: AuthConfig;   // HTTP only
+  auth?: AuthConfig; // HTTP only
 }
 ```
 
 `MCPServer` wraps the official SDK while exposing it as `server.nativeServer` whenever you need lower level control.
+
+## Require OAuth sign-in
+
+OAuth protects the HTTP MCP endpoint before tools, resources, or prompts can be used. Provider helpers configure discovery, bearer-token verification, resource binding, scopes, and `ctx.auth` together.
+
+Use a provider-native field for an external identity provider:
+
+```ts
+import { MCPServer, oauth } from "mcpfy-sdk/server";
+
+const server = new MCPServer({
+  name: "private-server",
+  version: "1.0.0",
+  auth: oauth.auth0({
+    domain: process.env.AUTH0_DOMAIN!,
+  }),
+});
+```
+
+Available configurations are `oauth.auth0`, `oauth.clerk`, `oauth.workos`, `oauth.supabase`, `oauth.betterAuth`, `oauth.keycloak`, `oauth.jwt`, and `oauth.custom`. Set `MCP_URL` to the exact canonical public MCP endpoint. OAuth configuration fails fast when it is missing. Legacy `MCPFY_MCP_URL` and `MCPFY_URL` values are still read for compatibility.
+
+`oauth.clerk` uses Clerk's token-type-aware backend verifier so Clerk session tokens cannot be confused with OAuth access tokens. Set `CLERK_SECRET_KEY` on the server; JWT and opaque Clerk OAuth tokens are both supported. Never expose this secret to a browser or MCP client.
+
+Provider helpers require a valid access token but do not require any scopes by default. Add `requiredScopes` only after configuring the same scopes in your authorization provider:
+
+```ts
+auth: oauth.auth0({
+  domain: process.env.AUTH0_DOMAIN!,
+  requiredScopes: ["tools:execute"],
+});
+```
+
+Authenticated handlers receive normalized and raw verified identity:
+
+```ts
+server.tool({ name: "whoami", schema: z.object({}) }, async (_input, ctx) =>
+  object({
+    userId: ctx.auth?.user?.id,
+    scopes: ctx.auth?.scopes ?? [],
+  }),
+);
+```
+
+OAuth applies only to HTTP transport. Stdio authentication remains the responsibility of the local process environment.
 
 ---
 
@@ -112,16 +156,17 @@ server.tool(
       sum: z.number(),
     }),
   },
-  async ({ a, b }) => object({
-    sum: a + b,
-  })
+  async ({ a, b }) =>
+    object({
+      sum: a + b,
+    }),
 );
 ```
 
 The callback receives:
 
 ```ts
-(input, context)
+(input, context);
 ```
 
 You can also define the callback inline using the `cb` property if you prefer.
@@ -138,7 +183,7 @@ server.prompt(
       name: z.string(),
     }),
   },
-  async ({ name }) => text(`Hello ${name}!`)
+  async ({ name }) => text(`Hello ${name}!`),
 );
 ```
 
@@ -158,7 +203,7 @@ server.resource(
     uri: "app://greeting",
     title: "Greeting",
   },
-  async () => markdown("# Hello!")
+  async () => markdown("# Hello!"),
 );
 ```
 
@@ -175,7 +220,7 @@ server.resourceTemplate(
   async (uri, params) =>
     object({
       userId: params.userId,
-    })
+    }),
 );
 ```
 
@@ -227,14 +272,17 @@ server.tool(
   },
   async ({ city }) => {
     const geo = await fetch(
-      `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1`
+      `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1`,
     ).then((r) => r.json());
     const place = geo.results[0];
     const forecast = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${place.latitude}&longitude=${place.longitude}&current=temperature_2m`
+      `https://api.open-meteo.com/v1/forecast?latitude=${place.latitude}&longitude=${place.longitude}&current=temperature_2m`,
     ).then((r) => r.json());
-    return object({ city: place.name, temperatureC: forecast.current.temperature_2m });
-  }
+    return object({
+      city: place.name,
+      temperatureC: forecast.current.temperature_2m,
+    });
+  },
 );
 ```
 
@@ -246,11 +294,7 @@ import { useCallTool, useToolPayload } from "mcpfy-sdk/widget";
 export default function Weather() {
   const { output } = useToolPayload();
   const callTool = useCallTool();
-  return (
-    <button onClick={() => callTool("weather", { city: "Tokyo" })}>
-      {String(output?.city ?? "Lookup")}
-    </button>
-  );
+  return <button onClick={() => callTool("weather", { city: "Tokyo" })}>{String(output?.city ?? "Lookup")}</button>;
 }
 ```
 
@@ -276,30 +320,30 @@ widget: {
 
 Omit `csp` unless the widget loads remote URLs. mcpfy writes those origins into the widget HTML (`Content-Security-Policy` `connect-src`) and into host metadata: ChatGPT (`openai/widgetCSP`), Claude (MCP Apps `ui.csp`), and MCP-UI (`resource._meta.csp`). ChatGPT and Claude apply a tight policy as soon as you declare one: `connectDomains` for `fetch`, `resourceDomains` for `<img>` / fonts / CSS. Inline SVG and inlined JS/CSS do not need extra resource domains. Avoid `data:` image URLs — hosts that see a widget CSP often omit `data:` from `img-src`.
 
-Set `MCPFY_URL` (or `MCP_URL`) to your public MCP origin (for example `https://your-host/mcp`). That origin is merged into `connectDomains` and `resourceDomains` so the iframe can `fetch` your own server. Do not use `127.0.0.1` for ChatGPT — the iframe cannot reach it.
+Set `MCP_URL` to your public MCP endpoint (for example `https://your-host/mcp`). Its origin is merged into `connectDomains` and `resourceDomains` so the iframe can `fetch` your own server. Do not use `127.0.0.1` for ChatGPT — the iframe cannot reach it.
 
 `MCPServer({ widgetsDir: "src/widgets" })` changes the folder root. A `dir` that looks like a path (`./ui/weather`) is resolved from cwd.
 
 ### Widget hooks (`mcpfy-sdk/widget`)
 
-| Export | Purpose |
-| --- | --- |
-| `HostRuntime` / `ThemeProvider` | Providers (injected by the SDK shell) |
-| `useToolPayload` | Tool input / output / pending |
-| `useCallTool` | `useCallTool()` returns a `(name, args)` function. `useCallTool("name")` returns `{ call, isPending, data, error }`. Augment `WidgetToolMap` for typed names. |
-| `useLinkedTool` | Bound tool name + `call()` |
-| `useSendFollowUp` | Send a follow-up prompt to the host chat |
-| `useOpenExternal` | Open a URL via the host |
-| `useLayoutMode` | `{ mode, request, available }` for inline / pip / fullscreen |
-| `useHostContext` | Protocol, layout, locale, platform, `capabilities` (gate follow-up / links / view tools) |
-| `useHostTheme` | light / dark |
-| `HostImage` | Image tag with host-safe defaults |
-| `useWidgetState` | Persist JSON on ChatGPT (`widgetState`) |
-| `useViewState` | Local state + host persist + MCP Apps model context |
-| `useModelContext` | `{ supported, publish }` — next-turn context without a chat message (MCP Apps) |
-| `useViewTool` | Register a tool the **model** can call on this mounted view (MCP Apps). No-op in ChatGPT / MCP-UI. |
+| Export                          | Purpose                                                                                                                                                       |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HostRuntime` / `ThemeProvider` | Providers (injected by the SDK shell)                                                                                                                         |
+| `useToolPayload`                | Tool input / output / pending                                                                                                                                 |
+| `useCallTool`                   | `useCallTool()` returns a `(name, args)` function. `useCallTool("name")` returns `{ call, isPending, data, error }`. Augment `WidgetToolMap` for typed names. |
+| `useLinkedTool`                 | Bound tool name + `call()`                                                                                                                                    |
+| `useSendFollowUp`               | Send a follow-up prompt to the host chat                                                                                                                      |
+| `useOpenExternal`               | Open a URL via the host                                                                                                                                       |
+| `useLayoutMode`                 | `{ mode, request, available }` for inline / pip / fullscreen                                                                                                  |
+| `useHostContext`                | Protocol, layout, locale, platform, `capabilities` (gate follow-up / links / view tools)                                                                      |
+| `useHostTheme`                  | light / dark                                                                                                                                                  |
+| `HostImage`                     | Image tag with host-safe defaults                                                                                                                             |
+| `useWidgetState`                | Persist JSON on ChatGPT (`widgetState`)                                                                                                                       |
+| `useViewState`                  | Local state + host persist + MCP Apps model context                                                                                                           |
+| `useModelContext`               | `{ supported, publish }` — next-turn context without a chat message (MCP Apps)                                                                                |
+| `useViewTool`                   | Register a tool the **model** can call on this mounted view (MCP Apps). No-op in ChatGPT / MCP-UI.                                                            |
 
-ChatGPT / remote Apps SDK iframes cannot reach `127.0.0.1`. Set `MCPFY_URL` to a public origin, and run `mcpfy build` before production.
+ChatGPT / remote Apps SDK iframes cannot reach `127.0.0.1`. Set `MCP_URL` to the public MCP endpoint, and run `mcpfy build` before production.
 
 ### Deprecated: `server.widget()` + raw HTML
 
@@ -365,17 +409,17 @@ interface ToolContext {
 Instead of manually creating MCP responses, return helpers.
 
 ```ts
-text("Hello")
+text("Hello");
 
-markdown("# Hello")
+markdown("# Hello");
 
-image(base64)
+image(base64);
 
 object({
   success: true,
-})
+});
 
-error("Something went wrong")
+error("Something went wrong");
 ```
 
 The same helpers work everywhere:
@@ -447,11 +491,10 @@ import { connect, postToolCall } from "mcpfy-sdk/widget-bridge";
 ```
 
 ```ts
-const { protocol, openai, app } =
-  await connect({
-    name: "weather-widget",
-    version: "1.0.0",
-  });
+const { protocol, openai, app } = await connect({
+  name: "weather-widget",
+  version: "1.0.0",
+});
 
 if (protocol === "apps-sdk") {
   await openai?.callTool?.("weather", { city: "Tokyo" });

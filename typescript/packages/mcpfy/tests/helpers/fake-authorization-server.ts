@@ -27,17 +27,18 @@ export async function startFakeAuthorizationServer(): Promise<FakeAuthorizationS
   const kid = "test-key-1";
   const jwk = { ...(await exportJWK(publicKey)), kid, alg: "RS256", use: "sig" };
 
-  const codes = new Map<string, { codeChallenge: string }>();
+  const codes = new Map<string, { codeChallenge: string; resource?: string }>();
   let issuer = "";
 
-  async function signAccessToken(): Promise<string> {
-    return new SignJWT({ scope: "read" })
+  async function signAccessToken(resource?: string): Promise<string> {
+    const token = new SignJWT({ scope: "read" })
       .setProtectedHeader({ alg: "RS256", kid })
       .setIssuedAt()
       .setIssuer(issuer)
       .setSubject("test-user-123")
-      .setExpirationTime("1h")
-      .sign(privateKey as KeyLike);
+      .setExpirationTime("1h");
+    if (resource) token.setAudience(resource);
+    return token.sign(privateKey as KeyLike);
   }
 
   const server: Server = createServer(async (req, res) => {
@@ -83,8 +84,9 @@ export async function startFakeAuthorizationServer(): Promise<FakeAuthorizationS
       const redirectUri = url.searchParams.get("redirect_uri") ?? "";
       const state = url.searchParams.get("state") ?? "";
       const codeChallenge = url.searchParams.get("code_challenge") ?? "";
+      const resource = url.searchParams.get("resource") ?? undefined;
       const code = `test-auth-code-${randomBytes(8).toString("hex")}`;
-      codes.set(code, { codeChallenge });
+      codes.set(code, { codeChallenge, resource });
       const redirect = new URL(redirectUri);
       redirect.searchParams.set("code", code);
       if (state) redirect.searchParams.set("state", state);
@@ -114,7 +116,7 @@ export async function startFakeAuthorizationServer(): Promise<FakeAuthorizationS
         codes.delete(code);
         res.writeHead(200, { "content-type": "application/json" }).end(
           JSON.stringify({
-            access_token: await signAccessToken(),
+            access_token: await signAccessToken(entry.resource),
             token_type: "Bearer",
             expires_in: 3600,
             refresh_token: "test-refresh-token",
