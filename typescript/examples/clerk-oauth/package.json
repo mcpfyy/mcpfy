@@ -1,0 +1,17 @@
+{
+  "name": "@mcpfy-examples/clerk-oauth",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "scripts": {
+    "start": "node --env-file=.env --import tsx src/server.ts"
+  },
+  "dependencies": {
+    "mcpfy-sdk": "workspace:*",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "tsx": "^4.19.2"
+  }
+}
