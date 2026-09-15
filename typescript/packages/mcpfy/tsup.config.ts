@@ -19,6 +19,7 @@ export default defineConfig([
     entry: {
       "src/index": "src/index.ts",
       "src/server/index": "src/server/index.ts",
+      "src/server/auth/index": "src/server/auth/index.ts",
       "src/client/index": "src/client/index.ts",
       "src/auth/index": "src/auth/index.ts",
     },
