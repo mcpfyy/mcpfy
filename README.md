@@ -110,6 +110,36 @@ await client.closeAllSessions();
 
 ---
 
+## From the SDK to production
+
+The SDK is the build step. [mcpfy.ai](https://mcpfy.ai) carries the same server through the rest of the pipeline — deploy, publish, iterate, monitor — so you do not assemble a host, a test harness, an analytics stack and a submission pack yourself.
+
+### Build
+
+Scaffold with the SDK, install a skill into your coding agent, or describe the app and let it scaffold. Already writing MCP servers? Existing code drops in unchanged.
+
+<img src="./assets/platform-build.png" alt="Scaffolding a server with create-mcpfy-app, and a tool defined in tools/chart-sales.ts" width="100%" />
+
+### Publish
+
+Marketplace checklists tell you when a server is ready for ChatGPT and Claude, and the submission assets are generated for you.
+
+<img src="./assets/platform-publish.png" alt="Publishing checks — protocol and discovery, tool conformance, security and policy, domain and TLS" width="100%" />
+
+### Iterate
+
+Cloud Inspector runs the server against real clients from a browser. Fire tool calls, read the JSON-RPC, and swap models with no local setup.
+
+<img src="./assets/platform-iterate.png" alt="Cloud Inspector showing a display_weather tool call, its JSON-RPC frames, and eval scores across GPT, Claude and Gemini" width="100%" />
+
+### Monitor
+
+Traffic, tool-call volume, latency and error rates once it is live, with session replay end to end.
+
+<img src="./assets/platform-monitor.png" alt="Analytics dashboard — tool calls over 24h, traffic by country, and a trace list with per-call latency" width="100%" />
+
+---
+
 ## Documentation
 
 - 📖 **TypeScript workspace** — [`typescript/README.md`](./typescript/README.md)
