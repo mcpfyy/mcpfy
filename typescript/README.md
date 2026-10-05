@@ -17,6 +17,7 @@ pnpm workspace for the TypeScript SDK. Full API: [`packages/mcpfy/README.md`](./
 
 - [`examples/hello-world`](./examples/hello-world) — same MCP as `create-mcpfy-app --no-widget` (`add`, greeting resource, `greet` prompt).
 - [`examples/widget-weather`](./examples/widget-weather) — same MCP as default `create-mcpfy-app` (`widget: "weather"` → `src/widgets/weather`). Tool fetches Open-Meteo; widget uses `callTool`.
+- [`examples/widget-mcpcn`](./examples/widget-mcpcn) — an interactive order tracker using mcpcn's `StatusBadge`, `ProgressSteps`, and `QuickReply` components, Tailwind CSS, and SDK widget hooks.
 
 ## Development
 
