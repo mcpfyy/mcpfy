@@ -1,14 +1,21 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NodeOAuthClientProvider } from "../src/auth/node-oauth-provider.js";
+
+const execFileMock = vi.hoisted(() => vi.fn());
+
+vi.mock("node:child_process", () => ({
+  execFile: execFileMock,
+}));
 
 describe("NodeOAuthClientProvider", () => {
   let dataDir: string;
 
   beforeEach(() => {
     dataDir = mkdtempSync(join(tmpdir(), "mcpfy-oauth-test-"));
+    execFileMock.mockClear();
   });
 
   afterEach(() => {
@@ -44,16 +51,18 @@ describe("NodeOAuthClientProvider", () => {
     expect(second.redirectUrl).toBe(first.redirectUrl);
   });
 
-  it("resolves getAuthorizationCode() when the loopback server receives a real callback request", async () => {
+  it("opens authorization URLs without a shell and resolves the loopback callback", async () => {
     const provider = await NodeOAuthClientProvider.create({ serverUrl: "https://mcp.example.com", dataDir });
+    const authorizationUrl = new URL("https://fake-auth.example.com/authorize?value=$(touch%20/tmp/pwned)");
 
-    await provider.redirectToAuthorization(new URL("https://fake-auth.example.com/authorize?client_id=abc"));
+    await provider.redirectToAuthorization(authorizationUrl);
     const codePromise = provider.getAuthorizationCode();
 
     const callbackRes = await fetch(`${provider.redirectUrl}?code=real-auth-code&state=xyz`);
     expect(callbackRes.status).toBe(200);
 
     await expect(codePromise).resolves.toBe("real-auth-code");
+    expect(execFileMock.mock.calls[0][1]).toContain(authorizationUrl.toString());
   });
 
   it("rejects getAuthorizationCode() when the callback reports an error", async () => {
